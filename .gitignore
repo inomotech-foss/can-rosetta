@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Data / model artifacts (never commit real drives)
+*.parquet
+*.mp4
+*.mov
+*.dbc
+/sessions/
+/out/
+*.ckpt
+*.pt
+*.onnx
+!datasets/**/*.parquet
+
+# macOS / Xcode
+.DS_Store
+xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.xcuserstate
+build/
+# XcodeGen is the source of truth; the .xcodeproj is generated (see companion/ios/README.md)
+*.xcodeproj/
+
+# Editors
+.idea/
+.vscode/
+*.swp

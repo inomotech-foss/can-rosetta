@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "canrosetta"
+version = "0.1.0"
+description = "Server-side signal identification and foundation model for CAN-Rosetta"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "inomotech-foss" }]
+keywords = ["can", "obd", "uds", "reverse-engineering", "automotive", "dbc"]
+dependencies = [
+  "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+parquet = ["pyarrow>=12"]
+model = ["torch>=2.1"]
+dev = [
+  "pytest>=7",
+  "jsonschema>=4",
+  "pyarrow>=12",
+  "ruff>=0.4",
+]
+
+[project.scripts]
+canrosetta = "canrosetta.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/canrosetta"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

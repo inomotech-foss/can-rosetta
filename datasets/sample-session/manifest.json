@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0.0",
+  "session_id": "synthetic-demo",
+  "created_utc": 1752624000.0,
+  "vehicle": {
+    "make": "Synthetic",
+    "model": "Testcar",
+    "year": 2020
+  },
+  "devices": [
+    {
+      "role": "edge",
+      "kind": "autopi",
+      "id": "sim-edge",
+      "sw_version": "canrosetta-synth",
+      "clock": {
+        "source": "ntp",
+        "utc_offset_est_s": 0.0,
+        "err_est_s": 1.0
+      }
+    },
+    {
+      "role": "companion",
+      "kind": "ios",
+      "id": "sim-phone",
+      "sw_version": "canrosetta-synth",
+      "clock": {
+        "source": "gps",
+        "utc_offset_est_s": 0.0,
+        "err_est_s": 0.05
+      }
+    }
+  ],
+  "streams": [
+    {
+      "path": "can/frames.jsonl",
+      "kind": "can_frames",
+      "rows": 2400
+    },
+    {
+      "path": "can/discovery.json",
+      "kind": "discovery"
+    },
+    {
+      "path": "phone/motion.jsonl",
+      "kind": "motion"
+    },
+    {
+      "path": "phone/location.jsonl",
+      "kind": "location"
+    }
+  ]
+}

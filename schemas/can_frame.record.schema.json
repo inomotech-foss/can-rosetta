@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/inomotech-foss/can-rosetta/schemas/can_frame.record.schema.json",
+  "title": "One CAN frame — logical schema for a row of can/frames.parquet",
+  "description": "Stored as columnar Parquet for size; this JSON Schema is the normative per-row contract used by producers/consumers and by the JSONL fallback used in tests.",
+  "type": "object",
+  "required": ["t_mono", "arb_id", "is_extended", "dlc", "data", "direction"],
+  "additionalProperties": false,
+  "properties": {
+    "t_mono": { "type": "number" },
+    "t_utc": { "type": "number" },
+    "channel": { "type": "string" },
+    "arb_id": { "type": "integer", "minimum": 0 },
+    "is_extended": { "type": "boolean" },
+    "dlc": { "type": "integer", "minimum": 0, "maximum": 64 },
+    "data": { "type": "string", "description": "lowercase hex, length == 2*dlc", "pattern": "^([0-9a-f]{2})*$" },
+    "direction": { "enum": ["rx", "tx"] },
+    "probe_id": { "type": ["string", "null"] }
+  }
+}

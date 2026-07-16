@@ -1,0 +1,75 @@
+# Architecture
+
+CAN-Rosetta is three cooperating components joined by one file format. Nothing
+talks to anything else over a live API during a drive — the vehicle is a hostile
+environment for connectivity — so the coupling is deliberately loose: each tier
+produces or consumes **sessions** (see [`data-format.md`](data-format.md)).
+
+```
+┌─────────────────────────────┐        ┌──────────────────────────┐
+│  Vehicle                     │        │  Driver's pocket         │
+│  ┌───────────────────────┐  │        │  ┌────────────────────┐  │
+│  │ AutoPi  (edge/autopi) │  │        │  │ iPhone (companion) │  │
+│  │  • discovery          │  │        │  │  • CoreMotion IMU  │  │
+│  │  • continuous CAN log │  │        │  │  • CoreLocation GPS│  │
+│  │  → can/frames.parquet │  │        │  │  • dashboard video │  │
+│  │  → can/discovery.json │  │        │  │  → phone/*.jsonl    │  │
+│  └───────────┬───────────┘  │        │  └─────────┬──────────┘  │
+└──────────────┼──────────────┘        └────────────┼─────────────┘
+               │        upload session parts         │
+               └───────────────┬─────────────────────┘
+                               ▼
+                 ┌──────────────────────────────┐
+                 │  Server  (server/)           │
+                 │   2 align → 3 extract →       │
+                 │   4 identify → 5 model        │
+                 │   → labels/annotations.json   │
+                 │   → exported DBC              │
+                 └──────────────────────────────┘
+```
+
+## Why three tiers
+
+- **Edge (AutoPi)** is the only thing on the bus. It must be conservative
+  (read-only probing), robust to power cuts (append-only logs, resumable brute-
+  force), and cheap on CPU/flash. It runs Python — AutoPi's native environment —
+  reusing the platform's OBD manager, and falls back to SocketCAN or an
+  ELM327/STN serial link through a transport abstraction so the same code runs on
+  a laptop with a USB-CAN adapter for development.
+
+- **Companion (iPhone)** provides the *labels*. Its sensors are the known side of
+  the Rosetta stone. It is a normal iOS app (SwiftUI + CoreMotion + CoreLocation
+  + AVFoundation) that records to the shared format and exports a session part.
+  It is intentionally dumb: capture accurately, timestamp honestly, don't
+  interpret.
+
+- **Server** does everything that benefits from horsepower, hindsight, and cross-
+  session memory: precise alignment, the combinatorial candidate extraction, the
+  statistical identification baseline, and the learned foundation model. It is
+  the only tier that is allowed to be slow.
+
+## Data flow contract
+
+1. Edge and companion each record a session *part* keyed by a shared
+   `session_id` (agreed via QR handshake or entered manually at drive start).
+2. Parts are uploaded independently (WiFi/cellular when back in range). The
+   server merges parts sharing a `session_id` into one session directory.
+3. The server processes read-only inputs and writes only into `labels/` plus its
+   own database and exported artifacts. Raw inputs are immutable — every
+   derived result is reproducible from them.
+
+## Repository layout
+
+```
+can-rosetta/
+├── docs/           architecture, methodology, data format, roadmap
+├── schemas/        JSON Schemas for every session file (normative, CI-checked)
+├── edge/autopi/    in-vehicle app: discovery + logging (Python)
+├── companion/ios/  iPhone app: sensors + video (Swift/SwiftUI)
+├── server/         alignment + identification + model (Python)
+└── datasets/       tiny synthetic sample sessions for tests & demos
+```
+
+Each component has its own README with build/run instructions and its own tests.
+The `schemas/` directory is the seam: change a schema, and the CI for all three
+components re-validates against it.

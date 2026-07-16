@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: server (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Tests (unit + end-to-end on synthetic data)
+        run: pytest -q
+      - name: Smoke-test the CLI on the committed sample session
+        run: |
+          canrosetta identify ../datasets/sample-session --out /tmp/out
+          test -f /tmp/out/annotations.json
+          test -f /tmp/out/signals.dbc
+
+  edge:
+    name: edge / autopi (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    defaults:
+      run:
+        working-directory: edge/autopi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Tests (simulated transport, no hardware)
+        run: pytest -q
+
+  schemas:
+    name: schema + sample-session validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install jsonschema
+      - name: Validate schemas parse and the sample session conforms
+        run: python .github/scripts/validate_session.py datasets/sample-session
+
+  ios:
+    name: companion / ios (project generation)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate the Xcode project (validates project.yml)
+        working-directory: companion/ios
+        run: xcodegen generate

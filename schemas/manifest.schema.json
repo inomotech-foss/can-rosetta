@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/inomotech-foss/can-rosetta/schemas/manifest.schema.json",
+  "title": "Session manifest",
+  "type": "object",
+  "required": ["schema_version", "session_id", "created_utc", "devices", "streams"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "session_id": { "type": "string", "minLength": 1 },
+    "created_utc": { "type": "number" },
+    "vehicle": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "make": { "type": "string" },
+        "model": { "type": "string" },
+        "year": { "type": "integer" },
+        "vin_hash": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "devices": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["role", "kind", "id"],
+        "additionalProperties": true,
+        "properties": {
+          "role": { "enum": ["edge", "companion"] },
+          "kind": { "type": "string" },
+          "id": { "type": "string" },
+          "sw_version": { "type": "string" },
+          "mount": { "type": "string" },
+          "clock": {
+            "type": "object",
+            "required": ["source"],
+            "properties": {
+              "source": { "enum": ["ntp", "gps", "manual", "unknown"] },
+              "utc_offset_est_s": { "type": "number" },
+              "err_est_s": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "streams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "kind"],
+        "additionalProperties": true,
+        "properties": {
+          "path": { "type": "string" },
+          "kind": { "enum": ["can_frames", "discovery", "motion", "location", "video"] },
+          "rows": { "type": "integer" },
+          "index": { "type": "string" },
+          "t_start_utc": { "type": "number" },
+          "t_end_utc": { "type": "number" }
+        }
+      }
+    },
+    "sync_markers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "t_utc"],
+        "additionalProperties": true,
+        "properties": {
+          "kind": { "type": "string" },
+          "t_utc": { "type": "number" }
+        }
+      }
+    }
+  }
+}

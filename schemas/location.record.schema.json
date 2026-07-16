@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/inomotech-foss/can-rosetta/schemas/location.record.schema.json",
+  "title": "One location (GPS) record — a single line of phone/location.jsonl",
+  "type": "object",
+  "required": ["t_utc", "lat", "lon"],
+  "additionalProperties": false,
+  "properties": {
+    "t_utc": { "type": "number" },
+    "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+    "lon": { "type": "number", "minimum": -180, "maximum": 180 },
+    "alt": { "type": "number" },
+    "speed": { "type": "number", "description": "m/s over ground, -1 if unknown" },
+    "course": { "type": "number", "description": "deg from true north, -1 if unknown" },
+    "h_acc": { "type": "number" },
+    "v_acc": { "type": "number" }
+  }
+}

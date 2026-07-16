@@ -1,0 +1,1657 @@
+{
+  "schema_version": "1.0.0",
+  "obd": {
+    "supported_pids": [
+      "0x05",
+      "0x0C",
+      "0x0D"
+    ],
+    "samples": [
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624000.7,
+        "raw": "",
+        "value": 0,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624000.7,
+        "raw": "",
+        "value": 981,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624000.7,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624001.2,
+        "raw": "",
+        "value": 3,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624001.2,
+        "raw": "",
+        "value": 1581,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624001.2,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624001.7,
+        "raw": "",
+        "value": 5,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624001.7,
+        "raw": "",
+        "value": 2041,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624001.7,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624002.2,
+        "raw": "",
+        "value": 8,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624002.2,
+        "raw": "",
+        "value": 2578,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624002.2,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624002.7,
+        "raw": "",
+        "value": 10,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624002.7,
+        "raw": "",
+        "value": 3085,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624002.7,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624003.2,
+        "raw": "",
+        "value": 12,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624003.2,
+        "raw": "",
+        "value": 1030,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624003.2,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624003.7,
+        "raw": "",
+        "value": 14,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624003.7,
+        "raw": "",
+        "value": 1447,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624003.7,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624004.2,
+        "raw": "",
+        "value": 16,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624004.2,
+        "raw": "",
+        "value": 1873,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624004.2,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624004.7,
+        "raw": "",
+        "value": 18,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624004.7,
+        "raw": "",
+        "value": 2278,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624004.7,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624005.2,
+        "raw": "",
+        "value": 20,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624005.2,
+        "raw": "",
+        "value": 2651,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624005.2,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624005.7,
+        "raw": "",
+        "value": 21,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624005.7,
+        "raw": "",
+        "value": 2965,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624005.7,
+        "raw": "",
+        "value": 40,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624006.2,
+        "raw": "",
+        "value": 23,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624006.2,
+        "raw": "",
+        "value": 3313,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624006.2,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624006.7,
+        "raw": "",
+        "value": 24,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624006.7,
+        "raw": "",
+        "value": 1104,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624006.7,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624007.2,
+        "raw": "",
+        "value": 26,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624007.2,
+        "raw": "",
+        "value": 1393,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624007.2,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624007.7,
+        "raw": "",
+        "value": 27,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624007.7,
+        "raw": "",
+        "value": 1650,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624007.7,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624008.2,
+        "raw": "",
+        "value": 28,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624008.2,
+        "raw": "",
+        "value": 1854,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624008.2,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624008.7,
+        "raw": "",
+        "value": 29,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624008.7,
+        "raw": "",
+        "value": 2043,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624008.7,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624009.2,
+        "raw": "",
+        "value": 30,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624009.2,
+        "raw": "",
+        "value": 2254,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624009.2,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624009.7,
+        "raw": "",
+        "value": 31,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624009.7,
+        "raw": "",
+        "value": 2435,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624009.7,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624010.2,
+        "raw": "",
+        "value": 31,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624010.2,
+        "raw": "",
+        "value": 2557,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624010.2,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624010.7,
+        "raw": "",
+        "value": 32,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624010.7,
+        "raw": "",
+        "value": 2666,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624010.7,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624011.2,
+        "raw": "",
+        "value": 32,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624011.2,
+        "raw": "",
+        "value": 2792,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624011.2,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624011.7,
+        "raw": "",
+        "value": 33,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624011.7,
+        "raw": "",
+        "value": 2812,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624011.7,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624012.2,
+        "raw": "",
+        "value": 33,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624012.2,
+        "raw": "",
+        "value": 2892,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624012.2,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624012.7,
+        "raw": "",
+        "value": 33,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624012.7,
+        "raw": "",
+        "value": 2901,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624012.7,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624013.2,
+        "raw": "",
+        "value": 33,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624013.2,
+        "raw": "",
+        "value": 2921,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624013.2,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624013.7,
+        "raw": "",
+        "value": 33,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624013.7,
+        "raw": "",
+        "value": 2914,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624013.7,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624014.2,
+        "raw": "",
+        "value": 33,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624014.2,
+        "raw": "",
+        "value": 2909,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624014.2,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624014.7,
+        "raw": "",
+        "value": 33,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624014.7,
+        "raw": "",
+        "value": 2828,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624014.7,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624015.2,
+        "raw": "",
+        "value": 33,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624015.2,
+        "raw": "",
+        "value": 2774,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624015.2,
+        "raw": "",
+        "value": 41,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624015.7,
+        "raw": "",
+        "value": 32,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624015.7,
+        "raw": "",
+        "value": 2683,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624015.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624016.2,
+        "raw": "",
+        "value": 32,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624016.2,
+        "raw": "",
+        "value": 2624,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624016.2,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624016.7,
+        "raw": "",
+        "value": 31,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624016.7,
+        "raw": "",
+        "value": 2506,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624016.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624017.2,
+        "raw": "",
+        "value": 31,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624017.2,
+        "raw": "",
+        "value": 2404,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624017.2,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624017.7,
+        "raw": "",
+        "value": 30,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624017.7,
+        "raw": "",
+        "value": 2256,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624017.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624018.2,
+        "raw": "",
+        "value": 29,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624018.2,
+        "raw": "",
+        "value": 2130,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624018.2,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624018.7,
+        "raw": "",
+        "value": 29,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624018.7,
+        "raw": "",
+        "value": 2007,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624018.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624019.2,
+        "raw": "",
+        "value": 28,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624019.2,
+        "raw": "",
+        "value": 1837,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624019.2,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624019.7,
+        "raw": "",
+        "value": 27,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624019.7,
+        "raw": "",
+        "value": 1691,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624019.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624020.2,
+        "raw": "",
+        "value": 26,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624020.2,
+        "raw": "",
+        "value": 1528,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624020.2,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624020.7,
+        "raw": "",
+        "value": 26,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624020.7,
+        "raw": "",
+        "value": 1349,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624020.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624021.2,
+        "raw": "",
+        "value": 25,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624021.2,
+        "raw": "",
+        "value": 1164,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624021.2,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624021.7,
+        "raw": "",
+        "value": 24,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624021.7,
+        "raw": "",
+        "value": 1034,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624021.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624022.2,
+        "raw": "",
+        "value": 23,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624022.2,
+        "raw": "",
+        "value": 3355,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624022.2,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624022.7,
+        "raw": "",
+        "value": 23,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624022.7,
+        "raw": "",
+        "value": 3203,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624022.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624023.2,
+        "raw": "",
+        "value": 22,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624023.2,
+        "raw": "",
+        "value": 2996,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624023.2,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624023.7,
+        "raw": "",
+        "value": 21,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624023.7,
+        "raw": "",
+        "value": 2844,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624023.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624024.2,
+        "raw": "",
+        "value": 20,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624024.2,
+        "raw": "",
+        "value": 2686,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624024.2,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624024.7,
+        "raw": "",
+        "value": 20,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624024.7,
+        "raw": "",
+        "value": 2560,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624024.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624025.2,
+        "raw": "",
+        "value": 19,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624025.2,
+        "raw": "",
+        "value": 2453,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624025.2,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624025.7,
+        "raw": "",
+        "value": 18,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624025.7,
+        "raw": "",
+        "value": 2318,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624025.7,
+        "raw": "",
+        "value": 42,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624026.2,
+        "raw": "",
+        "value": 18,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624026.2,
+        "raw": "",
+        "value": 2191,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624026.2,
+        "raw": "",
+        "value": 43,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624026.7,
+        "raw": "",
+        "value": 17,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624026.7,
+        "raw": "",
+        "value": 2087,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624026.7,
+        "raw": "",
+        "value": 43,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624027.2,
+        "raw": "",
+        "value": 17,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624027.2,
+        "raw": "",
+        "value": 2001,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624027.2,
+        "raw": "",
+        "value": 43,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624027.7,
+        "raw": "",
+        "value": 16,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624027.7,
+        "raw": "",
+        "value": 1902,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624027.7,
+        "raw": "",
+        "value": 43,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624028.2,
+        "raw": "",
+        "value": 16,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624028.2,
+        "raw": "",
+        "value": 1842,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624028.2,
+        "raw": "",
+        "value": 43,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624028.7,
+        "raw": "",
+        "value": 16,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624028.7,
+        "raw": "",
+        "value": 1782,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624028.7,
+        "raw": "",
+        "value": 43,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624029.2,
+        "raw": "",
+        "value": 16,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624029.2,
+        "raw": "",
+        "value": 1704,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624029.2,
+        "raw": "",
+        "value": 43,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624029.7,
+        "raw": "",
+        "value": 15,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624029.7,
+        "raw": "",
+        "value": 1703,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624029.7,
+        "raw": "",
+        "value": 43,
+        "unit": "degC"
+      },
+      {
+        "mode": 1,
+        "pid": "0xd",
+        "name": "vehicle_speed",
+        "t_utc": 1752624030.2,
+        "raw": "",
+        "value": 15,
+        "unit": "km/h"
+      },
+      {
+        "mode": 1,
+        "pid": "0xc",
+        "name": "engine_rpm",
+        "t_utc": 1752624030.2,
+        "raw": "",
+        "value": 1715,
+        "unit": "rpm"
+      },
+      {
+        "mode": 1,
+        "pid": "0x5",
+        "name": "coolant_temp",
+        "t_utc": 1752624030.2,
+        "raw": "",
+        "value": 43,
+        "unit": "degC"
+      }
+    ]
+  },
+  "uds": {
+    "responding_dids": [
+      "0xF190"
+    ],
+    "ecus": [
+      {
+        "tx_id": "0x7E0",
+        "rx_id": "0x7E8"
+      }
+    ]
+  },
+  "plain_can": {
+    "arb_ids": [
+      {
+        "arb_id": "0x3c0",
+        "count": 2400,
+        "period_ms_est": 20
+      },
+      {
+        "arb_id": "0x1f0",
+        "count": 0,
+        "period_ms_est": 50
+      }
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "note": "for tests/demos only; real sessions never contain this",
+  "speed": {
+    "arb_id": "0x3c0",
+    "bytes": [
+      1,
+      2
+    ],
+    "endian": "big",
+    "scale": 0.01,
+    "unit": "km/h"
+  },
+  "rpm": {
+    "arb_id": "0x1f0",
+    "bytes": [
+      0,
+      1
+    ],
+    "endian": "big",
+    "scale": 1.0
+  },
+  "edge_clock_offset_s": 0.7
+}

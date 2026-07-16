@@ -1,0 +1,63 @@
+name: CanRosettaCompanion
+
+options:
+  bundleIdPrefix: com.inomotech.canrosetta
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: "" # set your Apple Developer team id here to run on device
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+targets:
+  CanRosettaCompanion:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      # Exclude the hand-written Info.plist; XcodeGen generates it from `info`.
+      - path: CanRosettaCompanion
+        excludes:
+          - "Info.plist"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.inomotech.canrosetta.companion
+        PRODUCT_NAME: CanRosettaCompanion
+        TARGETED_DEVICE_FAMILY: "1" # iPhone
+        CODE_SIGN_STYLE: Automatic
+    # System frameworks (CoreMotion, CoreLocation, AVFoundation) are linked
+    # automatically by the Swift compiler via module autolinking on `import`.
+    info:
+      path: CanRosettaCompanion/Info.plist
+      properties:
+        CFBundleDisplayName: CAN-Rosetta
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSMotionUsageDescription: >-
+          CAN-Rosetta records accelerometer, gyroscope and attitude while you
+          drive. These motion samples are the known reference used to decode the
+          vehicle's CAN bus.
+        NSLocationWhenInUseUsageDescription: >-
+          CAN-Rosetta records GPS position, speed and course while you drive, as
+          ground-truth for aligning and decoding the vehicle's CAN bus.
+        NSLocationAlwaysAndWhenInUseUsageDescription: >-
+          CAN-Rosetta keeps recording GPS in the background so a drive is
+          captured even when the screen is off or the phone is docked in a cradle.
+        NSCameraUsageDescription: >-
+          With "Film dashboard" enabled, CAN-Rosetta records the rear camera so
+          the dashboard can later be read (OCR) as ground truth for signals the
+          OBD port does not expose.
+        UIBackgroundModes:
+          - location
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true

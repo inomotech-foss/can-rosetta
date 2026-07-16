@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "canrosetta-edge"
+version = "0.1.0"
+description = "CAN-Rosetta edge (in-vehicle) component: read-only CAN/OBD/UDS discovery + logging for the AutoPi"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "Apache-2.0" }
+authors = [{ name = "CAN-Rosetta contributors" }]
+keywords = ["can", "obd", "uds", "autopi", "socketcan", "reverse-engineering"]
+dependencies = [
+  "pyyaml>=5.4",
+]
+
+[project.optional-dependencies]
+can = ["python-can>=4.0"]
+elm = ["pyserial>=3.5"]
+parquet = ["pyarrow>=8.0"]
+dev = ["pytest>=7.0", "jsonschema>=4.0", "ruff>=0.1"]
+
+[project.scripts]
+canrosetta-edge = "canrosetta_edge.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]

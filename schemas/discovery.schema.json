@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/inomotech-foss/can-rosetta/schemas/discovery.schema.json",
+  "title": "Edge discovery output",
+  "type": "object",
+  "required": ["schema_version"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "obd": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supported_pids": { "type": "array", "items": { "type": "string" } },
+        "samples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["mode", "pid", "t_utc"],
+            "additionalProperties": true,
+            "properties": {
+              "mode": { "type": "integer" },
+              "pid": { "type": "string" },
+              "name": { "type": "string" },
+              "t_utc": { "type": "number" },
+              "raw": { "type": "string" },
+              "value": { "type": ["number", "string", "null"] },
+              "unit": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "uds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "responding_dids": { "type": "array", "items": { "type": "string" } },
+        "ecus": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["tx_id", "rx_id"],
+            "additionalProperties": true,
+            "properties": {
+              "tx_id": { "type": "string" },
+              "rx_id": { "type": "string" },
+              "dids": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "plain_can": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "arb_ids": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["arb_id"],
+            "additionalProperties": true,
+            "properties": {
+              "arb_id": { "type": "string" },
+              "count": { "type": "integer" },
+              "period_ms_est": { "type": "number" },
+              "changing_bytes": { "type": "array", "items": { "type": "integer" } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/inomotech-foss/can-rosetta/schemas/motion.record.schema.json",
+  "title": "One motion (IMU) record — a single line of phone/motion.jsonl",
+  "type": "object",
+  "required": ["t_utc", "acc", "rot"],
+  "additionalProperties": false,
+  "properties": {
+    "t_utc": { "type": "number" },
+    "acc": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+    "gravity": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+    "rot": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+    "att": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+    "mag": { "type": ["array", "null"], "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+  }
+}
