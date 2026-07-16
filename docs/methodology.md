@@ -130,3 +130,32 @@ that train the model, and the model shrinks the search space the baseline runs
 over. See [`server/README.md`](../server/README.md) for the concrete package
 layout and how the baseline is wired today versus where the learned model plugs
 in.
+
+## Prior work and adopted techniques
+
+CAN reverse-engineering has a solid literature; we build on it rather than
+reinventing it. Techniques adopted:
+
+- **Byte→bit boundary detection and a behavioral taxonomy** from **ByCAN**
+  (Zhou et al., arXiv:2408.09265). ByCAN clusters fields at byte granularity then
+  refines at bit granularity, and labels each field *Unused / Switch / Dynamic /
+  Verification* using flip-rate × distinct-value ratio. We implement the taxonomy
+  in [`taxonomy.py`](../server/src/canrosetta/taxonomy.py) (constant / switch /
+  counter / checksum / dynamic) and use it to pre-filter candidates — only
+  *dynamic* fields are worth correlating; constants, counters and checksums are
+  dropped up front (Stage 3 already discards the latter two).
+- **Dynamic Time Warping** for matching series with mismatched sampling rates —
+  a slow OBD/GPS reference (1–10 Hz) against a fast CAN broadcast (≥50 Hz) — also
+  from ByCAN. Implemented as a **banded** (Sakoe-Chiba) DTW in
+  [`signals.py`](../server/src/canrosetta/signals.py) so it stays O(n) in memory.
+  It complements the cross-correlation matcher: correlation finds the global lag
+  cheaply; DTW is the robust fallback when timing drifts nonlinearly.
+- **opendbc as ground truth** (comma.ai): the public DBCs let us score recovered
+  signals against real definitions.
+
+Where we go beyond them: ByCAN and peers (CAN-D, READ) decode from CAN + the
+standard OBD-II PID set alone. We ground the bus in a *much richer* reference
+corpus — phone and **onboard (edge-clock) IMU/GNSS**, plus OCR'd dashboard video
+— which reaches signals no OBD PID exposes, and we add a cross-vehicle foundation
+model. Validation against real datasets (comma2k19, CANdid, ReCAN) is described
+in [validation.md](validation.md).

@@ -1,0 +1,26 @@
+# Gateway API HTTPRoute. Pegasus uses Envoy Gateway (GatewayClass "pegasus")
+# with two active-active shared Gateways, pegasus-a / pegasus-b, in the
+# inomo-envoy-gateway namespace. TLS for *.svc.inomo.tech is terminated at the
+# Gateway using a cert-manager-issued wildcard (ClusterIssuer "letsencrypt"),
+# so no per-route TLS config is needed here.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: canrosetta
+  namespace: inomo-canrosetta
+spec:
+  parentRefs:
+    - name: pegasus-a
+      namespace: inomo-envoy-gateway
+    - name: pegasus-b
+      namespace: inomo-envoy-gateway
+  hostnames:
+    - canrosetta.svc.inomo.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: can-rosetta-server
+          port: 80

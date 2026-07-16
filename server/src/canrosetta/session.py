@@ -119,6 +119,8 @@ class Session:
     frames: CanFrames
     motion: dict[str, np.ndarray] = field(default_factory=dict)
     location: dict[str, np.ndarray] = field(default_factory=dict)
+    edge_motion: dict[str, np.ndarray] = field(default_factory=dict)
+    edge_location: dict[str, np.ndarray] = field(default_factory=dict)
     discovery: dict = field(default_factory=dict)
     labels: dict = field(default_factory=dict)
 
@@ -265,6 +267,14 @@ def load_session(root: str | Path) -> Session:
     if (root / "phone" / "location.jsonl").exists():
         location = _load_location(root / "phone" / "location.jsonl")
 
+    # the AutoPi's own onboard sensors, on the edge clock (see docs/data-format.md)
+    edge_motion: dict[str, np.ndarray] = {}
+    edge_location: dict[str, np.ndarray] = {}
+    if (root / "edge" / "motion.jsonl").exists():
+        edge_motion = _load_motion(root / "edge" / "motion.jsonl")
+    if (root / "edge" / "location.jsonl").exists():
+        edge_location = _load_location(root / "edge" / "location.jsonl")
+
     discovery: dict = {}
     disc_path = root / "can" / "discovery.json"
     if disc_path.exists():
@@ -282,6 +292,8 @@ def load_session(root: str | Path) -> Session:
         frames=frames,
         motion=motion,
         location=location,
+        edge_motion=edge_motion,
+        edge_location=edge_location,
         discovery=discovery,
         labels=labels,
     )

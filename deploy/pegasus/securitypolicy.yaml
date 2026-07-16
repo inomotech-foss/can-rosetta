@@ -1,0 +1,42 @@
+# Microsoft Entra (Azure AD) login enforcement.
+#
+# Paperplane enforces Entra via its OWN built-in OIDC support (configured through
+# Helm values). CAN-Rosetta's server is a plain FastAPI service with no built-in
+# OIDC, so we enforce Entra one layer out, at the pegasus ingress — Envoy Gateway
+# — using its native SecurityPolicy OIDC. This attaches to the HTTPRoute, so
+# every request to canrosetta.svc.inomo.tech must complete the Entra OIDC flow
+# before it reaches the pod. Same identity provider (Entra), same ingress stack
+# (Envoy Gateway), no application changes.
+#
+# The Entra OIDC issuer format is:
+#   https://login.microsoftonline.com/<TENANT_ID>/v2.0
+# Discovery lives at <issuer>/.well-known/openid-configuration.
+#
+# Placeholders to fill (see deploy/pegasus/README.md):
+#   <ENTRA_TENANT_ID>  Azure AD / Entra directory (tenant) ID  — not a secret
+#   <ENTRA_CLIENT_ID>  App registration (application/client) ID — not a secret
+# The client SECRET is provided via the `canrosetta-oidc` Secret (key
+# client-secret), synced from OpenBao — see secretproviderclass.yaml.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: canrosetta-entra-oidc
+  namespace: inomo-canrosetta
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: canrosetta
+  oidc:
+    provider:
+      issuer: "https://login.microsoftonline.com/<ENTRA_TENANT_ID>/v2.0"
+    clientID: "<ENTRA_CLIENT_ID>"
+    clientSecret:
+      # References the k8s Secret materialised from OpenBao by the CSI driver.
+      name: canrosetta-oidc
+    redirectURL: "https://canrosetta.svc.inomo.tech/oauth2/callback"
+    logoutPath: "/logout"
+    scopes:
+      - openid
+      - email
+      - profile

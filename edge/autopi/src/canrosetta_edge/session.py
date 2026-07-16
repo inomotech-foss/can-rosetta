@@ -37,6 +37,7 @@ class SessionLayout:
         self.session_id = session_id
         self.root = os.path.abspath(output_dir)
         self.can_dir = os.path.join(self.root, "can")
+        self.edge_dir = os.path.join(self.root, "edge")
 
     def ensure(self) -> "SessionLayout":
         os.makedirs(self.can_dir, exist_ok=True)
@@ -54,6 +55,15 @@ class SessionLayout:
     @property
     def manifest_path(self) -> str:
         return os.path.join(self.root, "manifest.json")
+
+    @property
+    def edge_motion_path(self) -> str:
+        """Onboard IMU log (edge clock) — see canrosetta_edge.sensors."""
+        return os.path.join(self.edge_dir, "motion.jsonl")
+
+    @property
+    def edge_location_path(self) -> str:
+        return os.path.join(self.edge_dir, "location.jsonl")
 
 
 def new_session_id() -> str:

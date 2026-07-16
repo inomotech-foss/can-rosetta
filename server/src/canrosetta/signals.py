@@ -124,6 +124,45 @@ def mutual_information(a: np.ndarray, b: np.ndarray, bins: int = 16) -> float:
     return float(np.sum(pxy[nz] * np.log(pxy[nz] / (px @ py)[nz])))
 
 
+def dtw_similarity(a: np.ndarray, b: np.ndarray, *, band_frac: float = 0.1) -> float:
+    """Similarity in [0,1] from banded Dynamic Time Warping of two series.
+
+    DTW aligns series that share a shape but differ in timing/rate — exactly the
+    reference-vs-candidate case when a slow OBD/GPS reference is matched against a
+    fast CAN broadcast (see the ByCAN paper, arXiv:2408.09265). Both inputs are
+    z-scored first so the score reflects shape, not scale.
+
+    A **Sakoe-Chiba band** (``band_frac`` of the length) bounds the warp and,
+    crucially, keeps memory to two rolling rows — O(n) — so this stays cheap on a
+    RAM-limited box even for long drives. Returns ``1/(1+normalized_cost)``.
+    """
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    a = a[np.isfinite(a)]
+    b = b[np.isfinite(b)]
+    if len(a) < 3 or len(b) < 3:
+        return 0.0
+    if np.std(a) < 1e-12 or np.std(b) < 1e-12:
+        return 0.0
+    a = (a - a.mean()) / a.std()
+    b = (b - b.mean()) / b.std()
+
+    n, m = len(a), len(b)
+    band = max(int(band_frac * max(n, m)), abs(n - m) + 1)
+    prev = np.full(m + 1, np.inf)
+    prev[0] = 0.0
+    for i in range(1, n + 1):
+        cur = np.full(m + 1, np.inf)
+        lo = max(1, i - band)
+        hi = min(m, i + band)
+        for j in range(lo, hi + 1):
+            cost = (a[i - 1] - b[j - 1]) ** 2
+            cur[j] = cost + min(prev[j], cur[j - 1], prev[j - 1])
+        prev = cur
+    dist = prev[m] / (n + m)
+    return float(1.0 / (1.0 + dist))
+
+
 def derivative(t: np.ndarray, v: np.ndarray) -> np.ndarray:
     """Central-difference derivative dv/dt on an irregular grid."""
     t = np.asarray(t, dtype=np.float64)

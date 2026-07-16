@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a defect in CAN-Rosetta to help us improve
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to fill out this bug report.
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search to see if an issue already exists for the bug you encountered.
+      options:
+        - label: I have searched the existing issues
+          required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the project is affected?
+      options:
+        - server (Python pipeline / model / API)
+        - edge / autopi (on-vehicle firmware)
+        - companion / ios (Swift app)
+        - schemas / data format
+        - deploy / ci
+        - unsure
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Current behavior
+      description: A concise description of what you're experiencing and what you expected.
+      placeholder: |
+        When I run <X>, <Y> happens. I expected <Z>.
+        ```
+        paste any error output here
+        ```
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      description: Include the exact command(s), and a session or input if relevant.
+      placeholder: |
+        1. Run `canrosetta identify ...`
+        2. See error
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Package version or git SHA.
+    validations:
+      required: false

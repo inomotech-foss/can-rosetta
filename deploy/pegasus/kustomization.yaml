@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: inomo-canrosetta
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - httproute.yaml
+  - securitypolicy.yaml
+  - secretproviderclass.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: can-rosetta-server
+      app.kubernetes.io/part-of: can-rosetta
+    includeSelectors: false
+
+images:
+  # Pin to an immutable digest in production (the build-image workflow publishes
+  # both a tag and a sha-tagged image). `latest` is a placeholder for review.
+  - name: ghcr.io/inomotech-foss/can-rosetta-server
+    newTag: latest

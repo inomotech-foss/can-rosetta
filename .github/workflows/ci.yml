@@ -4,9 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   server:
@@ -69,12 +74,23 @@ jobs:
         run: python .github/scripts/validate_session.py datasets/sample-session
 
   ios:
-    name: companion / ios (project generation)
+    name: companion / ios (build)
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
         run: brew install xcodegen
-      - name: Generate the Xcode project (validates project.yml)
+      - name: Generate the Xcode project
         working-directory: companion/ios
         run: xcodegen generate
+      - name: Build for the iOS Simulator (no code signing)
+        working-directory: companion/ios
+        run: |
+          xcodebuild \
+            -project CanRosettaCompanion.xcodeproj \
+            -scheme CanRosettaCompanion \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build

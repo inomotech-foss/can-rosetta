@@ -27,7 +27,38 @@ def build_references(session: Session) -> list[TimeSeries]:
     refs += _gps_references(session)
     refs += _imu_references(session)
     refs += _obd_references(session)
+    # The AutoPi's onboard sensors are on the edge clock — no cross-device
+    # alignment error — which makes them the most reliable motion references.
+    refs += _edge_imu_references(session)
+    refs += _edge_gps_references(session)
     return [r for r in refs if len(r.t) >= 8]
+
+
+def _edge_imu_references(session: Session) -> list[TimeSeries]:
+    m = session.edge_motion
+    if not m:
+        return []
+    t = m["t_utc"]
+    acc = np.vstack([m["acc_x"], m["acc_y"], m["acc_z"]])
+    mag = np.linalg.norm(acc, axis=0)
+    return [
+        TimeSeries("edge_imu_accel_mag", t, mag, unit="g", clock="edge"),
+        TimeSeries("edge_imu_yaw_rate", t, m["rot_z"], unit="rad/s", clock="edge"),
+    ]
+
+
+def _edge_gps_references(session: Session) -> list[TimeSeries]:
+    loc = session.edge_location
+    if not loc or "speed" not in loc:
+        return []
+    t, s = loc["t_utc"], loc["speed"].copy()
+    if not np.any(s >= 0):
+        return []
+    s[s < 0] = np.nan
+    return [
+        TimeSeries("edge_gps_speed", t, s, unit="m/s", clock="edge"),
+        TimeSeries("edge_gps_speed_kmh", t, s * 3.6, unit="km/h", clock="edge"),
+    ]
 
 
 def _gps_references(session: Session) -> list[TimeSeries]:

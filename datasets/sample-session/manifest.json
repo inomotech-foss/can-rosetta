@@ -48,6 +48,14 @@
     {
       "path": "phone/location.jsonl",
       "kind": "location"
+    },
+    {
+      "path": "edge/motion.jsonl",
+      "kind": "motion"
+    },
+    {
+      "path": "edge/location.jsonl",
+      "kind": "location"
     }
   ]
 }

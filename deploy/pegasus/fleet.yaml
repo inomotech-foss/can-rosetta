@@ -1,0 +1,21 @@
+# Rancher Fleet bundle for the CAN-Rosetta server.
+#
+# Pegasus (codeberg.org/inomotech/pegasus-cluster) is a Rancher Fleet GitOps
+# cluster. Each deployable unit is a `fleet.yaml` that points at a Helm chart or
+# a Kustomize overlay. This app ships raw Kubernetes manifests, so Fleet applies
+# them via Kustomize (it auto-detects the sibling kustomization.yaml).
+#
+# See deploy/pegasus/README.md for how to register this bundle in the
+# pegasus-cluster repo.
+
+defaultNamespace: inomo-canrosetta
+
+# Ordering: the OIDC client secret must exist (synced from OpenBao by the
+# Secrets Store CSI driver) before the workload and its SecurityPolicy come up.
+dependsOn:
+  - name: pegasus-cluster-platform-openbao-csi-provider
+  - name: pegasus-cluster-platform-secrets-store-csi-driver
+
+kustomize: {}
+
+# No per-target overrides needed; the single pegasus cluster is the only target.

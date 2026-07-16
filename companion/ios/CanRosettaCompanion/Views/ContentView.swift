@@ -17,6 +17,13 @@ struct ContentView: View {
             }
             .navigationTitle("CAN-Rosetta")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    NavigationLink {
+                        RemoteControlView()
+                    } label: {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                    }
+                }
                 ToolbarItem(placement: .principal) {
                     Text(controller.isRecording ? "Recording" : "Idle")
                         .font(.headline)
@@ -144,7 +151,7 @@ struct ContentView: View {
 }
 
 /// A simple label / value row.
-private struct StatusRow: View {
+struct StatusRow: View {
     let label: String
     let value: String
     var body: some View {
@@ -169,5 +176,7 @@ struct ShareSheet: UIViewControllerRepresentable {
 }
 
 #Preview {
-    ContentView().environmentObject(RecordingController())
+    ContentView()
+        .environmentObject(RecordingController())
+        .environmentObject(EdgeConnection())
 }

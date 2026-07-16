@@ -1,0 +1,26 @@
+# Code owners for CAN-Rosetta.
+#
+# Order matters: the last matching pattern for a path wins. Listed owners are
+# requested for review automatically and are the required reviewers once branch
+# protection (see docs/governance.md) is enabled.
+
+# Default owner for everything not matched more specifically.
+*                       @inomotech-foss/maintainers
+
+# Server (Python signal-identification pipeline + foundation model + API).
+/server/                @inomotech-foss/server-maintainers
+
+# Edge firmware for the AutoPi (Python, runs on-vehicle).
+/edge/                  @inomotech-foss/edge-maintainers
+
+# iOS companion app (Swift).
+/companion/             @inomotech-foss/ios-maintainers
+
+# Shared record/schema contracts — changes here ripple across all components.
+/schemas/               @inomotech-foss/maintainers
+
+# CI/CD, governance, containerization and cluster deployment.
+/.github/               @inomotech-foss/maintainers
+/server/Dockerfile      @inomotech-foss/maintainers
+/deploy/                @inomotech-foss/maintainers
+/docs/governance.md     @inomotech-foss/maintainers

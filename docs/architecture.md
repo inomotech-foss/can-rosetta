@@ -48,6 +48,31 @@ produces or consumes **sessions** (see [`data-format.md`](data-format.md)).
   statistical identification baseline, and the learned foundation model. It is
   the only tier that is allowed to be slow.
 
+## Control channel (phone → AutoPi)
+
+Recording is coordinated over a small **local, offline** control link: the AutoPi
+runs an HTTP + WebSocket server on its own WiFi and the phone is the client (see
+[control-protocol.md](control-protocol.md)). From the phone the driver creates a
+shared session, picks the discovery mode (fast / brute-force), starts the
+investigation, and starts/stops recording on both devices at once. The handshake
+also carries a **time sync** (Cristian's algorithm) that pins the two clocks
+together before the drive, shrinking the residual offset the server must recover.
+
+This does not reintroduce a server dependency in the vehicle — it is strictly
+peer-to-peer between the two devices, and both still record fully to local disk.
+
+## Onboard edge sensors
+
+The AutoPi logs its **own IMU/GPS** (`edge/motion.jsonl`, `edge/location.jsonl`)
+beside the CAN bus. Because these are on the *same clock* as the CAN frames, they
+give the server motion references with zero cross-device alignment error — the
+most reliable way to pin down acceleration/speed signals. The phone's sensors and
+video remain valuable for signals the AutoPi can't sense (dashboard-only
+indicators) and as an independent cross-check.
+
+While discovering or logging, the AutoPi holds a **wake lock** so its power
+manager never sleeps the device mid-recording.
+
 ## Data flow contract
 
 1. Edge and companion each record a session *part* keyed by a shared

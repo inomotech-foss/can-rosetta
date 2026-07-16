@@ -38,6 +38,19 @@ class EdgeConfig:
     # --- logging ---
     log_duration_s: Optional[float] = None  # None == until stopped
 
+    # --- edge onboard sensors (logged beside CAN, on the edge clock) ---
+    sensors_enabled: bool = True
+    sensor_source: str = "auto"           # auto | autopi | iio | simulated | none
+    sensor_rate_hz: float = 50.0          # IMU sampling rate
+
+    # --- control server (companion phone steers the AutoPi) ---
+    control_host: str = "0.0.0.0"
+    control_port: int = 8765
+    control_token: str = ""               # pre-shared bearer token; "" disables auth (dev only)
+
+    # --- power management ---
+    prevent_sleep: bool = True            # hold the AutoPi awake while a job runs
+
     @classmethod
     def from_yaml(cls, path: str) -> "EdgeConfig":
         import yaml  # dependency: pyyaml

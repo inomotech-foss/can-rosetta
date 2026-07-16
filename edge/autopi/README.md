@@ -12,6 +12,17 @@ the two in-vehicle stages of the CAN-Rosetta pipeline:
   `can/frames.parquet` (the haystack), while polling the discovered OBD/UDS
   signals at a steady rate to build a dense, labelled reference series.
 
+It also:
+
+- **Logs the AutoPi's own IMU/GPS** (`edge/motion.jsonl`, `edge/location.jsonl`)
+  beside the CAN bus — on the *same clock* as the frames, so these are the
+  server's most reliable motion references (no cross-device alignment needed).
+- **Serves a local control API** so the companion phone can create a shared
+  session, choose the discovery mode, and start/stop recording remotely — offline,
+  over the AutoPi's own WiFi (see [control-protocol.md](../../docs/control-protocol.md)).
+- **Holds a wake lock** while discovering/logging so the AutoPi never sleeps
+  mid-recording.
+
 The output is a **session part** in the shared
 [data format](../../docs/data-format.md); the CAN-Rosetta server merges it with
 the phone companion's part and does alignment + signal identification.
@@ -84,6 +95,17 @@ canrosetta-edge run --transport socketcan --mode fast --duration 600 --output-di
 
 # No hardware — end-to-end demo against the simulated bus
 canrosetta-edge simulate --output-dir /tmp/demo-session
+
+# Run the control server so the phone can steer this device (needs the [control] extra)
+canrosetta-edge serve --transport socketcan --control-port 8765 --control-token "$TOKEN"
+```
+
+All of `log`/`run`/`simulate`/`serve` also log the AutoPi's onboard sensors and
+hold the wake lock. The control server (`serve`) is documented in
+[control-protocol.md](../../docs/control-protocol.md); install it with:
+
+```bash
+pip install -e ".[control]"      # aiohttp → local HTTP + WebSocket control API
 ```
 
 `--session-id` sets the shared id agreed with the phone (a fresh UUID is minted
@@ -106,9 +128,12 @@ plain_can_census_s: 10.0
 ```
 session-<id>/
 ├── manifest.json          # edge device + stream index (manifest.schema.json)
-└── can/
-    ├── frames.parquet     # or frames.jsonl fallback (can_frame.record.schema.json)
-    └── discovery.json     # discovery.schema.json
+├── can/
+│   ├── frames.parquet     # or frames.jsonl fallback (can_frame.record.schema.json)
+│   └── discovery.json     # discovery.schema.json
+└── edge/                  # the AutoPi's onboard sensors (edge clock)
+    ├── motion.jsonl       # IMU (motion.record.schema.json)
+    └── location.jsonl     # GPS (location.record.schema.json)
 ```
 
 ## Tests

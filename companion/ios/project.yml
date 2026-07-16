@@ -29,7 +29,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.inomotech.canrosetta.companion
         PRODUCT_NAME: CanRosettaCompanion
         TARGETED_DEVICE_FAMILY: "1" # iPhone
-        CODE_SIGN_STYLE: Automatic
+        # Simulator / CI builds need no code signing. A device build can still
+        # override these (set DEVELOPMENT_TEAM + CODE_SIGN_STYLE=Automatic).
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
     # System frameworks (CoreMotion, CoreLocation, AVFoundation) are linked
     # automatically by the Swift compiler via module autolinking on `import`.
     info:
@@ -57,7 +62,25 @@ targets:
           With "Film dashboard" enabled, CAN-Rosetta records the rear camera so
           the dashboard can later be read (OCR) as ground truth for signals the
           OBD port does not expose.
+        NSLocalNetworkUsageDescription: >-
+          CAN-Rosetta connects to the AutoPi over its local Wi-Fi access point to
+          start investigations and coordinate recording. No data leaves the
+          local network.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         UIBackgroundModes:
           - location
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
+
+# Explicit shared scheme so CI (`xcodebuild -scheme CanRosettaCompanion`) finds
+# it without relying on Xcode auto-generating one on open.
+schemes:
+  CanRosettaCompanion:
+    build:
+      targets:
+        CanRosettaCompanion: all
+    run:
+      config: Debug
+    archive:
+      config: Release
