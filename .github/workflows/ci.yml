@@ -75,9 +75,14 @@ jobs:
 
   ios:
     name: companion / ios (build)
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Select the latest stable Xcode
+        # XcodeGen 2.45+ writes an Xcode 16 project (objectVersion 77); build with a matching Xcode.
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate the Xcode project
