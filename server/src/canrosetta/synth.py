@@ -180,6 +180,30 @@ def generate(
             }
             fh.write(json.dumps(rec) + "\n")
 
+    # ---- edge onboard sensors (edge clock = true + offset) ---------------
+    # The AutoPi's own IMU/GPS, on the SAME clock as the CAN frames.
+    (out / "edge").mkdir(parents=True, exist_ok=True)
+    with (out / "edge" / "motion.jsonl").open("w", encoding="utf-8") as fh:
+        for k in range(int(duration_s * 100)):  # 100 Hz IMU
+            i = min(int(k / 100 / 0.01), len(tt) - 1)
+            t_utc = t0_true + edge_clock_offset_s + k / 100.0
+            ax = float(accel_ms2[i]) / 9.81 + rng.normal(0, 0.01)
+            fh.write(json.dumps({
+                "t_utc": round(t_utc, 4),
+                "acc": [round(ax, 5), round(rng.normal(0, 0.01), 5),
+                        round(rng.normal(0, 0.01), 5)],
+                "rot": [0.0, 0.0, round(rng.normal(0, 0.005), 5)],
+            }) + "\n")
+    with (out / "edge" / "location.jsonl").open("w", encoding="utf-8") as fh:
+        for k in range(int(duration_s * 5)):  # 5 Hz GPS
+            i = min(int(k / 5 / 0.01), len(tt) - 1)
+            t_utc = t0_true + edge_clock_offset_s + k / 5.0
+            fh.write(json.dumps({
+                "t_utc": round(t_utc, 4), "lat": 48.137, "lon": 11.575, "alt": 519.0,
+                "speed": round(float(speed_ms[i]) + rng.normal(0, 0.15), 3),
+                "course": -1.0, "h_acc": 4.0, "v_acc": 6.0,
+            }) + "\n")
+
     # ---- manifest --------------------------------------------------------
     manifest = {
         "schema_version": SCHEMA,
@@ -207,6 +231,8 @@ def generate(
             {"path": "can/discovery.json", "kind": "discovery"},
             {"path": "phone/motion.jsonl", "kind": "motion"},
             {"path": "phone/location.jsonl", "kind": "location"},
+            {"path": "edge/motion.jsonl", "kind": "motion"},
+            {"path": "edge/location.jsonl", "kind": "location"},
         ],
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2))

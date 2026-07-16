@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices"],
+  "forkProcessing": "enabled",
+  "labels": ["dependencies"],
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 4,
+  "packageRules": [
+    {
+      "description": "Python (server + edge) dependencies",
+      "groupName": "python",
+      "matchManagers": ["pep621", "pip_requirements", "pip-compile"]
+    },
+    {
+      "description": "GitHub Actions",
+      "groupName": "github-actions",
+      "matchManagers": ["github-actions"]
+    },
+    {
+      "description": "Docker base images",
+      "groupName": "docker",
+      "matchManagers": ["dockerfile", "docker-compose"]
+    },
+    {
+      "description": "Kubernetes / Fleet deploy manifests",
+      "groupName": "deploy",
+      "matchFileNames": ["deploy/**"]
+    }
+  ]
+}

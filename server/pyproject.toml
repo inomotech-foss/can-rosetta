@@ -18,6 +18,12 @@ dependencies = [
 [project.optional-dependencies]
 parquet = ["pyarrow>=12"]
 model = ["torch>=2.1"]
+api = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "python-multipart>=0.0.9",
+  "pyarrow>=12",
+]
 dev = [
   "pytest>=7",
   "jsonschema>=4",
@@ -27,6 +33,7 @@ dev = [
 
 [project.scripts]
 canrosetta = "canrosetta.cli:main"
+canrosetta-server = "canrosetta.api:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/canrosetta"]
@@ -37,6 +44,14 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI uses callables (File/Query/Depends) as argument defaults by design.
+extend-immutable-calls = [
+  "fastapi.File",
+  "fastapi.Query",
+  "fastapi.Depends",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

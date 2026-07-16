@@ -9,11 +9,13 @@ enum AppInfo {
 @main
 struct CanRosettaCompanionApp: App {
     @StateObject private var controller = RecordingController()
+    @StateObject private var connection = EdgeConnection()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(controller)
+                .environmentObject(connection)
                 .onAppear { controller.requestPermissions() }
         }
     }

@@ -65,6 +65,17 @@ def _cmd_identify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_import_candump(args: argparse.Namespace) -> int:
+    from .ingest import from_candump
+
+    out = from_candump(args.log, args.out)
+    session = load_session(out)
+    print(f"imported {out} — {len(session.frames)} frames across "
+          f"{len(session.frames.by_id())} arbitration IDs")
+    print(f"run: canrosetta identify {out}")
+    return 0
+
+
 def _cmd_fingerprint(args: argparse.Namespace) -> int:
     session = load_session(args.session)
     for aid, fid in sorted(session.frames.by_id().items()):
@@ -99,6 +110,12 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("fingerprint", help="print behavioral fingerprints per arb ID")
     s.add_argument("session")
     s.set_defaults(func=_cmd_fingerprint)
+
+    s = sub.add_parser("import-candump",
+                       help="convert a real `candump -L` log into a session")
+    s.add_argument("log", help="path to a candump -L log file")
+    s.add_argument("out", help="session directory to create")
+    s.set_defaults(func=_cmd_import_candump)
     return p
 
 

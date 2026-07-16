@@ -15,6 +15,9 @@ session-<uuid>/
 ├── can/
 │   ├── frames.parquet       # every CAN frame observed (the raw haystack)
 │   └── discovery.json       # what the edge probing found (OBD/UDS/plain-CAN)
+├── edge/                    # the AutoPi's OWN onboard sensors (edge clock)
+│   ├── motion.jsonl         # AutoPi IMU: accel, gyro (same schema as phone)
+│   └── location.jsonl       # AutoPi GPS (same schema as phone)
 ├── phone/
 │   ├── motion.jsonl         # IMU: accel, gyro, attitude, magnetometer
 │   ├── location.jsonl       # GPS: lat/lon/alt/speed/course
@@ -24,6 +27,14 @@ session-<uuid>/
     ├── dashboard_ocr.jsonl  # values read off the filmed dashboard
     └── annotations.json     # human corrections / known signal mappings
 ```
+
+The `edge/` streams are the AutoPi's own IMU/GPS, logged beside the CAN bus.
+They use the **same record schemas** as the phone's `phone/motion.jsonl` and
+`phone/location.jsonl`, but they carry a decisive advantage: they are on the
+**same clock as the CAN frames**, so correlating an edge-IMU acceleration against
+a candidate CAN signal needs *no cross-device alignment* at all. The source of a
+motion/location stream is given by its path prefix (`edge/` vs `phone/`); the
+server treats `edge/` series as edge-clock and `phone/` series as companion-clock.
 
 All files are UTF-8. All arrays-of-records are newline-delimited JSON (`.jsonl`)
 except the CAN frame table, which is columnar Parquet because it is by far the

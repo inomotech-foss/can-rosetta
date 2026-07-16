@@ -33,3 +33,13 @@ def manifest_schema():
 @pytest.fixture(scope="session")
 def can_frame_schema():
     return load_schema("can_frame.record.schema.json")
+
+
+@pytest.fixture(scope="session")
+def motion_schema():
+    return load_schema("motion.record.schema.json")
+
+
+@pytest.fixture(scope="session")
+def location_schema():
+    return load_schema("location.record.schema.json")

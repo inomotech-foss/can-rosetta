@@ -79,6 +79,51 @@ sample buffer's presentation timestamp (host-time clock domain) run through the
 same `Clock`. Frames are appended to `AVAssetWriter` in real time; late frames
 are dropped by the capture output rather than stalling the pipeline.
 
+## Remote control of the AutoPi
+
+The app can steer the AutoPi over its **local HTTP + WebSocket control API**
+(see [`control-protocol.md`](../../docs/control-protocol.md)) so the driver can
+start an investigation and coordinate recording from the phone. Reach it from the
+antenna icon in the top-left of the main screen.
+
+What it does:
+
+1. **Pair / connect** — enter the AutoPi host (e.g. `http://192.168.4.1:8765`)
+   and the pre-shared bearer token. Both are persisted in `UserDefaults`.
+   `GET /api/health` drives the connection status.
+2. **Time sync** — `GET /api/time` a few times (Cristian's algorithm) using the
+   app's monotonic-anchored `Clock` for the phone side; keeps the sample with the
+   smallest round-trip and estimates `edge_utc_offset_est_s = edge_utc −
+   companion_utc`. That offset is sent to the AutoPi so both clocks share a prior.
+3. **Investigation** — pick **fast** (catalog scan) or **slow** (brute-force),
+   `POST /api/session` (sharing the session id + offset + `clock_source`), then
+   `POST /api/discover {mode}`. The discovery summary comes from status / WS.
+4. **Coordinated recording** — one "Start recording" action does
+   `POST /api/session` → `POST /api/log/start` on the edge, then starts the
+   phone's own `RecordingController` **with the same `session_id`** so the server
+   merges both parts. "Stop" stops the phone and `POST /api/log/stop`.
+5. **Live status** — subscribes to `GET /api/ws`
+   (`URLSessionWebSocketTask`, bearer via `?token=`) for edge state, frame count,
+   OBD samples and elapsed time, and falls back to polling `GET /api/status`
+   every 2 s if the socket drops.
+
+Code:
+
+- `Remote/EdgeControlClient.swift` — stateless async `URLSession` client plus the
+  WebSocket `events()` `AsyncThrowingStream`; Codable structs matching the
+  protocol JSON via `convertFromSnakeCase` / `convertToSnakeCase`.
+- `Remote/EdgeConnection.swift` — `@MainActor ObservableObject` holding
+  host/token, the measured offset, live edge status, and the coordinated
+  start/stop that drives `RecordingController`.
+- `Views/RemoteControlView.swift` — the pairing + control UI.
+
+The **shared `session_id` is single-sourced** from
+`RecordingController.sessionId` (the phone mints it); the coordinated start sends
+that exact id to the AutoPi via `POST /api/session`.
+
+Local networking to the AutoPi's AP requires `NSAllowsLocalNetworking` and
+`NSLocalNetworkUsageDescription`, both declared via `project.yml`.
+
 ## Build
 
 Requires macOS with Xcode 15+ and [XcodeGen](https://github.com/yonyz/XcodeGen).
@@ -93,6 +138,22 @@ open CanRosettaCompanion.xcodeproj
 Set your Apple Developer team in `project.yml` (`DEVELOPMENT_TEAM`) or in Xcode's
 Signing & Capabilities, then build/run on a device (sensors and camera do not
 work in the Simulator).
+
+### CI (simulator build, no signing)
+
+CI generates the project and builds it for the iOS Simulator without code
+signing (the target sets `CODE_SIGNING_REQUIRED=NO` / `CODE_SIGN_IDENTITY=""`,
+and `project.yml` defines a shared scheme named `CanRosettaCompanion`):
+
+```sh
+cd companion/ios && xcodegen generate
+xcodebuild -project CanRosettaCompanion.xcodeproj -scheme CanRosettaCompanion \
+  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+The generated `CanRosettaCompanion.xcodeproj` is **not** committed (gitignored);
+CI regenerates it from `project.yml`.
 
 - Bundle id: `com.inomotech.canrosetta.companion`
 - Deployment target: iOS 16.0

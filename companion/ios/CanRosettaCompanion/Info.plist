@@ -22,6 +22,13 @@
 	<string>1</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>CAN-Rosetta connects to the AutoPi over its local Wi-Fi access point to start investigations and coordinate recording. No data leaves the local network.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>With "Film dashboard" enabled, CAN-Rosetta records the rear camera so the dashboard can later be read (OCR) as ground truth for signals the OBD port does not expose.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

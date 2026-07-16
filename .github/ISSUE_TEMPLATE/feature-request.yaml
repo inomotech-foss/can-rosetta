@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest an idea or enhancement for CAN-Rosetta
+title: "[feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement.
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search to see if a request already exists.
+      options:
+        - label: I have searched the existing issues
+          required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - server (Python pipeline / model / API)
+        - edge / autopi (on-vehicle firmware)
+        - companion / ios (Swift app)
+        - schemas / data format
+        - deploy / ci
+        - cross-cutting
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Problem to solve
+      description: What problem would this feature address?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed solution
+      description: Describe the solution you'd like and any alternatives considered.
+    validations:
+      required: true

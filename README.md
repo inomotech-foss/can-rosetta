@@ -40,9 +40,15 @@ Three components, one shared [session data format](docs/data-format.md):
 
 | Component | Where | What it does |
 |-----------|-------|--------------|
-| [`edge/autopi`](edge/autopi) | in the vehicle (AutoPi) | **discovers** available signals (fast catalog scan + slow brute-force) and **continuously logs** every CAN frame |
-| [`companion/ios`](companion/ios) | driver's iPhone | logs **IMU + GPS** at high rate and optionally **films the dashboard**, all UTC-timestamped |
+| [`edge/autopi`](edge/autopi) | in the vehicle (AutoPi) | **discovers** available signals (fast catalog scan + slow brute-force), **continuously logs** every CAN frame, logs its **own IMU/GPS** beside the bus, and serves a **control API** the phone drives |
+| [`companion/ios`](companion/ios) | driver's iPhone | logs **IMU + GPS** at high rate, optionally **films the dashboard**, and **remotely steers the AutoPi** (pick mode, start/stop recording) — all UTC-timestamped |
 | [`server`](server) | anywhere with a CPU/GPU | **aligns** the clocks, **extracts** bit-field candidates, **identifies** signals against the references, and trains the **foundation model** |
+
+The two in-vehicle devices coordinate peer-to-peer over a local, offline
+[control link](docs/control-protocol.md) (the AutoPi serves; the phone drives) —
+no internet or server needed in the car. The server processes uploaded sessions
+afterward. Real-world `candump -L` logs can be imported straight into the
+pipeline with `canrosetta import-candump`.
 
 ```
  AutoPi  ──►  can/frames.parquet + can/discovery.json  ─┐

@@ -65,6 +65,15 @@ def test_confident_mappings_and_dbc(tmp_path):
     assert f"BO_ {SPEED_ID}" in dbc  # speed message present
 
 
+def test_edge_onboard_sensors_identify_speed(tmp_path):
+    _, result = _run(tmp_path)
+    # the AutoPi's own GPS (edge clock) should also pin the speed frame
+    assert "edge_gps_speed_kmh" in result.per_reference
+    top = result.per_reference["edge_gps_speed_kmh"][0]
+    assert top.candidate.arb_id == SPEED_ID
+    assert abs(top.r) > 0.98
+
+
 def test_noise_frame_yields_no_confident_signal(tmp_path):
     _, result = _run(tmp_path)
     # the random 0x2A0 frame must never win a reference at high confidence
