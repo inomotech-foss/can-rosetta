@@ -30,6 +30,12 @@ dev = [
   "jsonschema>=4",
   "pyarrow>=12",
   "ruff>=0.4",
+  # API/UI surface — needed so tests/test_api.py runs in CI. Starlette's
+  # TestClient requires httpx; uvicorn lets the dashboard be served locally.
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "python-multipart>=0.0.9",
+  "httpx>=0.27",
 ]
 
 [project.scripts]
