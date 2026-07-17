@@ -60,6 +60,25 @@ See [docs/architecture.md](docs/architecture.md) for the full picture and
 [docs/methodology.md](docs/methodology.md) for the five-stage pipeline and the
 math behind identification.
 
+## Capabilities
+
+| Area | What it does | Where |
+|------|--------------|-------|
+| Discovery | fast OBD/UDS catalog scan + slow brute-force sweep + plain-CAN census | `edge/autopi` |
+| Logging | continuous CAN capture + AutoPi onboard IMU/GPS (on the CAN clock) | `edge/autopi` |
+| Remote control | phone creates a session, picks fast/slow, starts/stops recording; clock-sync handshake | `edge` + `companion` |
+| Alignment | estimate the edge↔phone clock offset by cross-correlating redundant signals | `server/align.py` |
+| Extraction | enumerate bit-field candidates; drop constants/counters/checksums | `server/extract.py` |
+| Identification | correlate candidates vs GPS/IMU/OBD/dashboard refs; fit scale/offset; rank | `server/identify.py` |
+| Dashboard perception | OCR digits, telltale on/off, needle angle, gear — video **+ hybrid high-res stills** | `server/perception` |
+| EV signals | signed motion refs, regen, battery current/voltage/SoC, V·I & Coulomb priors | `server/ev.py` |
+| EV charging | connector state, AC/DC mode, AC voltage/current/phases, charge power | `server/charging.py` |
+| Message roles | periodic / sporadic / on-demand classification | `server/roles.py` |
+| Command ID | flag **command** signals passively (they *lead* their effect) — never transmits | `server/roles.py` |
+| Multiplexing | detect the selector byte (η²) and extract per-selector candidates | `server/mux.py` |
+| Export | confident mappings → **DBC**; real logs in via `import-candump` | `server/dbc.py`, `ingest.py` |
+| Foundation model | byte tokenizer + fingerprints (numpy) + masked-byte Transformer pretraining (torch) | `server/model` |
+
 ## How signals are found
 
 Two complementary layers (details in [methodology](docs/methodology.md)):
