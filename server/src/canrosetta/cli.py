@@ -87,6 +87,22 @@ def _cmd_import_candump(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_mux(args: argparse.Namespace) -> int:
+    from .mux import detect_multiplexor
+
+    session = load_session(args.session)
+    found = 0
+    for aid, fid in sorted(session.frames.by_id().items()):
+        mux = detect_multiplexor(fid)
+        if mux is not None:
+            found += 1
+            print(f"  0x{aid:X}: multiplexor at byte {mux.byte_offset} "
+                  f"values={mux.values} (score={mux.score:.2f})")
+    if not found:
+        print("no multiplexed frames detected")
+    return 0
+
+
 def _cmd_roles(args: argparse.Namespace) -> int:
     from .roles import message_roles
 
@@ -155,6 +171,10 @@ def build_parser() -> argparse.ArgumentParser:
                        help="classify each arbitration ID's cadence (periodic/sporadic/on-demand)")
     s.add_argument("session")
     s.set_defaults(func=_cmd_roles)
+
+    s = sub.add_parser("mux", help="detect multiplexed frames (selector byte per arb ID)")
+    s.add_argument("session")
+    s.set_defaults(func=_cmd_mux)
 
     s = sub.add_parser("perceive",
                        help="dashboard-video perception -> labels/ (needs video + perception.json)")

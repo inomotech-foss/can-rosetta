@@ -23,7 +23,8 @@ recorded sessions; the learned foundation model is scaffolded, not yet trained.
       signals, not just continuous ones.
 - [ ] **Cross-component integration test**: drive the edge simulator and a
       synthetic phone part into one session and run the server on it.
-- [ ] **Multiplexed signal handling** in extraction (multiplexed CAN frames).
+- [x] **Multiplexed signal handling** (`mux.py`): detect the selector byte via
+      correlation ratio (η²) and extract candidates per selector value.
 - [ ] **Phone→vehicle frame estimation** so IMU axes become true longitudinal /
       lateral acceleration references.
 - [x] **EV-specific signals**: signed motion references + regen event + EV OBD
