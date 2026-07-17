@@ -90,3 +90,47 @@ def test_session_census():
 def test_unknown_session_404():
     resp = client.get("/api/sessions/does-not-exist")
     assert resp.status_code == 404
+
+
+# --- vision-gap feature endpoints (merge / clusters / coverage / knowledge) ---
+
+
+def test_coverage_endpoint():
+    sid = _sample_session_id()
+    resp = client.get(f"/api/sessions/{sid}/coverage")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["dynamic_fields"] > 0
+    assert 0.0 <= body["coverage"] <= 1.0
+
+
+def test_clusters_endpoint():
+    sid = _sample_session_id()
+    resp = client.get(f"/api/sessions/{sid}/clusters")
+    assert resp.status_code == 200
+    assert "clusters" in resp.json()
+
+
+def test_merge_status_endpoint():
+    resp = client.get("/api/merge-status")
+    assert resp.status_code == 200
+    assert "sessions" in resp.json()
+
+
+def test_knowledge_and_confirm_reject(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANROSETTA_KB", str(tmp_path / "kb.json"))
+    sid = _sample_session_id()
+
+    # reject a hypothesis, then confirm another; the KB summary should reflect it
+    r = client.post(f"/api/sessions/{sid}/reject",
+                    json={"reference": "obd_coolant_temp", "candidate_label": "0x3C0#bit12"})
+    assert r.status_code == 200
+    c = client.post(f"/api/sessions/{sid}/confirm",
+                    json={"reference": "gps_speed_kmh",
+                          "candidate": {"label": "0x3C0[1:3]BEu", "byte_offset": 1}, "r": 0.999})
+    assert c.status_code == 200
+
+    k = client.get("/api/knowledge")
+    assert k.status_code == 200
+    platforms = k.json()["platforms"]
+    assert any(p["signals"] >= 1 for p in platforms)

@@ -65,6 +65,39 @@ def test_confident_mappings_and_dbc(tmp_path):
     assert f"BO_ {SPEED_ID}" in dbc  # speed message present
 
 
+def test_sync_marker_alignment(tmp_path):
+    # a deliberate marker on the companion clock + a matching edge-IMU decel spike
+    import json
+
+    from canrosetta.align import estimate_from_markers
+    from canrosetta.session import load_session
+
+    root = tmp_path / "m"
+    (root / "edge").mkdir(parents=True)
+    offset = 0.3  # edge clock runs 0.3 s behind the marker time here
+    with (root / "edge" / "motion.jsonl").open("w") as fh:
+        for k in range(500):
+            t = k * 0.01
+            ax = -0.25 if abs(t - 2.0) < 0.05 else 0.0  # sharp decel at edge t=2.0
+            fh.write(json.dumps({"t_utc": round(t, 3), "acc": [ax, 0.0, 0.98],
+                                 "rot": [0, 0, 0]}) + "\n")
+    (root / "can").mkdir(exist_ok=True)
+    (root / "can" / "frames.jsonl").write_text(json.dumps({
+        "t_mono": 0.0, "t_utc": 0.0, "arb_id": 0x1, "is_extended": False,
+        "dlc": 1, "data": "00", "direction": "rx"}) + "\n")
+    (root / "manifest.json").write_text(json.dumps({
+        "schema_version": "1.0.0", "session_id": "m", "created_utc": 0.0,
+        "devices": [{"role": "edge", "kind": "autopi", "id": "e"}],
+        "streams": [{"path": "can/frames.jsonl", "kind": "can_frames"},
+                    {"path": "edge/motion.jsonl", "kind": "motion"}],
+        "sync_markers": [{"kind": "brake_pulse", "t_utc": 2.0 + offset}]}))
+
+    align = estimate_from_markers(load_session(root))
+    assert align is not None and align.method == "sync_marker"
+    assert abs(align.delta - offset) < 0.05
+    assert align.confidence > 0.9
+
+
 def test_edge_onboard_sensors_identify_speed(tmp_path):
     _, result = _run(tmp_path)
     # the AutoPi's own GPS (edge clock) should also pin the speed frame
