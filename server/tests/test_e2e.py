@@ -11,7 +11,7 @@ from __future__ import annotations
 from canrosetta.dbc import to_dbc
 from canrosetta.identify import identify_session
 from canrosetta.session import load_session
-from canrosetta.synth import RPM_ID, SPEED_ID, generate
+from canrosetta.synth import BODY_ID, RPM_ID, SPEED_ID, generate
 
 
 def _run(tmp_path):
@@ -72,6 +72,23 @@ def test_edge_onboard_sensors_identify_speed(tmp_path):
     top = result.per_reference["edge_gps_speed_kmh"][0]
     assert top.candidate.arb_id == SPEED_ID
     assert abs(top.r) > 0.98
+
+
+def test_dashboard_labels_identify_telltale_and_gear(tmp_path):
+    # references derived from the (synthetic) filmed dashboard should pin
+    # signals no OBD PID exposes: a turn-signal telltale bit and the gear enum.
+    _, result = _run(tmp_path)
+
+    assert "telltale_turn_signal" in result.per_reference
+    tt = result.per_reference["telltale_turn_signal"][0]
+    assert tt.candidate.arb_id == BODY_ID
+    assert abs(tt.r) > 0.5
+
+    assert "dash_gear" in result.per_reference
+    g = result.per_reference["dash_gear"][0]
+    assert g.candidate.arb_id == BODY_ID
+    assert g.candidate.byte_offset == 1
+    assert abs(g.r) > 0.9
 
 
 def test_noise_frame_yields_no_confident_signal(tmp_path):

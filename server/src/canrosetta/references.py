@@ -31,7 +31,55 @@ def build_references(session: Session) -> list[TimeSeries]:
     # alignment error — which makes them the most reliable motion references.
     refs += _edge_imu_references(session)
     refs += _edge_gps_references(session)
+    # Dashboard-video-derived references reach signals no OBD PID exposes.
+    refs += _video_label_references(session)
     return [r for r in refs if len(r.t) >= 8]
+
+
+def _video_label_references(session: Session) -> list[TimeSeries]:
+    """References read off the filmed dashboard (companion clock).
+
+    Digits/needles become continuous references; telltales become *event*
+    references (0/1) that should coincide with a CAN bit flip; gear becomes a
+    (discrete-valued) continuous reference matched against an enum CAN field.
+    """
+    out: list[TimeSeries] = []
+    vl = session.video_labels
+    if not vl:
+        return out
+
+    for row_key, name_key, val_key, kind in (
+        ("dashboard", "field", "value", "continuous"),
+    ):
+        by_name: dict[str, list[tuple[float, float]]] = {}
+        for r in vl.get(row_key, []):
+            v = r.get(val_key)
+            if isinstance(v, (int, float)):
+                by_name.setdefault(f"dash_{r.get(name_key, '?')}", []).append(
+                    (float(r["t_utc"]), float(v)))
+        for nm, pts in by_name.items():
+            pts.sort()
+            out.append(TimeSeries(nm, np.array([p[0] for p in pts]),
+                                  np.array([p[1] for p in pts]), kind=kind))
+
+    # telltales: one event reference per lamp name
+    tt: dict[str, list[tuple[float, float]]] = {}
+    for r in vl.get("telltales", []):
+        tt.setdefault(f"telltale_{r.get('name', '?')}", []).append(
+            (float(r["t_utc"]), float(r.get("state", 0))))
+    for nm, pts in tt.items():
+        pts.sort()
+        out.append(TimeSeries(nm, np.array([p[0] for p in pts]),
+                              np.array([p[1] for p in pts]), kind="event"))
+
+    # gear
+    gpts = [(float(r["t_utc"]), float(r["gear"])) for r in vl.get("gear", [])
+            if isinstance(r.get("gear"), (int, float))]
+    if gpts:
+        gpts.sort()
+        out.append(TimeSeries("dash_gear", np.array([p[0] for p in gpts]),
+                              np.array([p[1] for p in gpts]), unit="gear"))
+    return out
 
 
 def _edge_imu_references(session: Session) -> list[TimeSeries]:

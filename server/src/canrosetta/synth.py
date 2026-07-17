@@ -29,6 +29,13 @@ SCHEMA = "1.0.0"
 SPEED_ID = 0x3C0
 RPM_ID = 0x1F0
 NOISE_ID = 0x2A0
+BODY_ID = 0x3B0  # body module: turn-signal telltale (byte0 MSB) + gear (byte1)
+
+
+def _turn_signal(t: float) -> int:
+    """1.5 Hz blink during two active windows; off otherwise (dashboard-visible)."""
+    active = (20.0 <= t <= 35.0) or (80.0 <= t <= 95.0)
+    return 1 if (active and math.sin(2 * math.pi * 1.5 * t) > 0) else 0
 
 
 def _speed_profile(t: np.ndarray) -> np.ndarray:
@@ -75,6 +82,7 @@ def generate(
     # then drops on the upshift. This decouples rpm from absolute speed (as in a
     # real drive) so the two signals are distinguishable, not collinear.
     gear = np.clip((speed_kmh // 12).astype(int), 0, 5)
+    turn = np.array([_turn_signal(float(x)) for x in tt])
     frac_in_gear = (speed_kmh - gear * 12) / 12.0
     base_rpm = 1000 + frac_in_gear * 2500  # 1000 idle .. ~3500 redline-ish
     rpm_can = base_rpm + rng.normal(0, 15, tt.shape)  # noise seen by the CAN frame
@@ -104,6 +112,13 @@ def generate(
         b[2] = 0x00
         return bytes(b)
 
+    def body_frame(i: int) -> bytes:
+        b = bytearray(8)
+        b[0] = 0x80 if turn[i] else 0x00  # turn-signal telltale in byte0 MSB (bit index 0)
+        b[1] = int(gear[i]) & 0xFF  # gear enum in byte1
+        b[3] = 0x55  # constant padding
+        return bytes(b)
+
     # 0x3C0 @ 50 Hz, 0x1F0 @ 20 Hz, plus a noise frame @ 10 Hz
     for k in range(int(duration_s * 50)):
         i = min(int(k / 50 / 0.01), len(tt) - 1)
@@ -113,6 +128,10 @@ def generate(
         i = min(int(k / 20 / 0.01), len(tt) - 1)
         mono = k / 20.0
         frames.append(_frame(mono, t0_true + edge_clock_offset_s, RPM_ID, rpm_frame(i)))
+    for k in range(int(duration_s * 20)):  # body module @ 20 Hz
+        i = min(int(k / 20 / 0.01), len(tt) - 1)
+        mono = k / 20.0
+        frames.append(_frame(mono, t0_true + edge_clock_offset_s, BODY_ID, body_frame(i)))
     for k in range(int(duration_s * 10)):
         mono = k / 10.0
         noise = bytes(int(x) for x in rng.integers(0, 256, 8))
@@ -204,6 +223,20 @@ def generate(
                 "course": -1.0, "h_acc": 4.0, "v_acc": 6.0,
             }) + "\n")
 
+    # ---- dashboard-video labels (companion clock = true) -----------------
+    # As if produced by canrosetta.perception from the filmed dashboard.
+    (out / "labels").mkdir(parents=True, exist_ok=True)
+    with (out / "labels" / "telltales.jsonl").open("w", encoding="utf-8") as fh:
+        for k in range(int(duration_s * 10)):  # 10 Hz
+            i = min(int(k / 10 / 0.01), len(tt) - 1)
+            fh.write(json.dumps({"t_utc": round(t0_true + k / 10.0, 4),
+                                 "name": "turn_signal", "state": int(turn[i])}) + "\n")
+    with (out / "labels" / "gear.jsonl").open("w", encoding="utf-8") as fh:
+        for k in range(int(duration_s * 5)):  # 5 Hz
+            i = min(int(k / 5 / 0.01), len(tt) - 1)
+            fh.write(json.dumps({"t_utc": round(t0_true + k / 5.0, 4),
+                                 "gear": int(gear[i])}) + "\n")
+
     # ---- manifest --------------------------------------------------------
     manifest = {
         "schema_version": SCHEMA,
@@ -245,6 +278,8 @@ def generate(
         "speed": {"arb_id": hex(SPEED_ID), "bytes": [1, 2], "endian": "big",
                   "scale": 0.01, "unit": "km/h"},
         "rpm": {"arb_id": hex(RPM_ID), "bytes": [0, 1], "endian": "big", "scale": 1.0},
+        "turn_signal": {"arb_id": hex(BODY_ID), "byte": 0, "bit": "MSB"},
+        "gear": {"arb_id": hex(BODY_ID), "byte": 1},
         "edge_clock_offset_s": edge_clock_offset_s,
     }
     (out / "ground_truth.json").write_text(json.dumps(ground_truth, indent=2))

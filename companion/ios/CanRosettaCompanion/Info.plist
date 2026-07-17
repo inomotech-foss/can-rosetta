@@ -27,10 +27,10 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>With "Film dashboard" or "Capture stills" enabled, CAN-Rosetta uses the rear camera to record the dashboard (video and/or periodic full-resolution photos) so it can later be read (OCR) as ground truth for signals the OBD port does not expose.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>CAN-Rosetta connects to the AutoPi over its local Wi-Fi access point to start investigations and coordinate recording. No data leaves the local network.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>With "Film dashboard" enabled, CAN-Rosetta records the rear camera so the dashboard can later be read (OCR) as ground truth for signals the OBD port does not expose.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>CAN-Rosetta keeps recording GPS in the background so a drive is captured even when the screen is off or the phone is docked in a cradle.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

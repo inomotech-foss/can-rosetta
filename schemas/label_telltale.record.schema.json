@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/inomotech-foss/can-rosetta/schemas/label_telltale.record.schema.json",
+  "title": "One telltale/indicator label — a line of labels/telltales.jsonl",
+  "type": "object",
+  "required": ["t_utc", "name", "state"],
+  "additionalProperties": false,
+  "properties": {
+    "t_utc": { "type": "number" },
+    "name": { "type": "string", "description": "lamp name, e.g. turn_signal, abs, engine" },
+    "state": { "type": "integer", "enum": [0, 1] },
+    "conf": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

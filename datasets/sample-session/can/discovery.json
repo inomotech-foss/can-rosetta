@@ -1644,7 +1644,7 @@
     "arb_ids": [
       {
         "arb_id": "0x3c0",
-        "count": 2400,
+        "count": 3000,
         "period_ms_est": 20
       },
       {

@@ -19,5 +19,14 @@
     "endian": "big",
     "scale": 1.0
   },
+  "turn_signal": {
+    "arb_id": "0x3b0",
+    "byte": 0,
+    "bit": "MSB"
+  },
+  "gear": {
+    "arb_id": "0x3b0",
+    "byte": 1
+  },
   "edge_clock_offset_s": 0.7
 }

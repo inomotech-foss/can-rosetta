@@ -207,15 +207,40 @@ players, we ship an explicit index:
 { "frame": 1, "pts": 0.0333, "t_utc": 1752624001.066 }
 ```
 
+## `phone/photos/` + `phone/photos_index.jsonl` (hybrid capture)
+
+Video trades spatial resolution for frame rate — great for catching a
+turn-signal blink or a needle sweeping, poor for reading small digits through
+HEVC compression. So the companion app *also* captures periodic
+**full-resolution stills** (e.g. every 0.25–1 s) into `phone/photos/`, indexed by:
+
+```jsonc
+{ "t_utc": 1752624001.5, "path": "phone/photos/000001.jpg", "w": 4032, "h": 3024 }
+```
+
+Perception routes **numeric/gear OCR to the nearest still** (accuracy) and
+**telltales/needles to the video** (temporal density). Both are optional; with
+neither, the dashboard simply contributes no references.
+
 ## `labels/` (server-side, optional)
 
 Not produced in-vehicle. The server (or a human) writes these back into the
-session as it learns:
+session as it learns. The dashboard-video ones are produced by
+[`canrosetta.perception`](../server/src/canrosetta/perception) from `phone/video.mp4`
+(one extractor per dashboard element — see [methodology](methodology.md)):
 
-- `dashboard_ocr.jsonl` — `{ "t_utc":…, "field":"speed", "value":60, "conf":0.9 }`
+- `dashboard_ocr.jsonl` — numeric / needle readings:
+  `{ "t_utc":…, "field":"dash_speed", "value":60, "conf":0.9 }`
+- `telltales.jsonl` — indicator lamp states (turn signal, ABS, engine, …):
+  `{ "t_utc":…, "name":"turn_signal", "state":1 }`
+- `gear.jsonl` — gear position: `{ "t_utc":…, "gear":2 }` (P=0,R=-1,N=1,D=2 or numeric)
 - `annotations.json` — confirmed mappings, e.g. "arb_id 0x3C0 bytes 1–2,
   big-endian, scale 0.01 == vehicle speed", used both as training labels and as a
   regression fixture.
+
+The identifier turns these into references: numeric/needle → continuous,
+telltales → **event** references (match a bit flip), gear → an enum matched
+against a categorical CAN field.
 
 ## Versioning
 

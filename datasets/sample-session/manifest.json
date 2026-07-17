@@ -35,7 +35,7 @@
     {
       "path": "can/frames.jsonl",
       "kind": "can_frames",
-      "rows": 2400
+      "rows": 3000
     },
     {
       "path": "can/discovery.json",

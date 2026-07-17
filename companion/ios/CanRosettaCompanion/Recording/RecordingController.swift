@@ -14,8 +14,11 @@ import os
 ///     └── phone/
 ///         ├── motion.jsonl
 ///         ├── location.jsonl
-///         ├── video.mp4          (only if "film dashboard" was on)
-///         └── video_index.jsonl  (only if "film dashboard" was on)
+///         ├── video.mp4           (only if "film dashboard" was on)
+///         ├── video_index.jsonl   (only if "film dashboard" was on)
+///         ├── photos/             (only if "capture stills" was on)
+///         │   └── 000000.jpg ...
+///         └── photos_index.jsonl  (only if "capture stills" was on)
 @MainActor
 final class RecordingController: ObservableObject {
 
@@ -24,11 +27,16 @@ final class RecordingController: ObservableObject {
     /// Session id; agreed with the AutoPi (QR/manual). Editable while stopped.
     @Published var sessionId: String = SessionID.generate()
     @Published var filmDashboard: Bool = false
+    /// Capture periodic full-resolution stills of the dashboard for OCR.
+    @Published var capturePhotos: Bool = true
+    /// Seconds between stills (see `PhotoCapture`).
+    @Published var photoIntervalSeconds: Double = 0.5
 
     @Published private(set) var isRecording = false
     @Published private(set) var motionCount = 0
     @Published private(set) var locationCount = 0
     @Published private(set) var videoFrameCount = 0
+    @Published private(set) var photoCount = 0
     /// Estimated live IMU sample rate (Hz).
     @Published private(set) var imuRateHz: Double = 0
     /// Horizontal accuracy of the latest GPS fix (m), or nil if no fix yet.
@@ -49,6 +57,7 @@ final class RecordingController: ObservableObject {
     private var motionSource: MotionSource?
     private var locationSource: LocationSource?
     private var videoRecorder: VideoRecorder?
+    private var photoCapture: PhotoCapture?
     private var motionWriter: JSONLWriter?
     private var locationWriter: JSONLWriter?
 
@@ -78,7 +87,7 @@ final class RecordingController: ObservableObject {
     func requestPermissions() {
         standbyLocation.requestAuthorization()
         Task {
-            if filmDashboard {
+            if filmDashboard || capturePhotos {
                 _ = await VideoRecorder.requestCameraAuthorization()
             }
         }
@@ -140,6 +149,29 @@ final class RecordingController: ObservableObject {
                 }
             }
 
+            // Periodic full-resolution stills (optional). Rides the video's
+            // capture session when video is on (so video keeps recording),
+            // otherwise stands up its own session. Setup never throws — a failure
+            // just disables stills and leaves the rest of the recording intact.
+            if capturePhotos {
+                let photosDir = phoneDir.appendingPathComponent("photos", isDirectory: true)
+                try? FileManager.default.createDirectory(at: photosDir, withIntermediateDirectories: true)
+                let capture = PhotoCapture(
+                    clock: clock,
+                    photosDir: photosDir,
+                    indexURL: phoneDir.appendingPathComponent("photos_index.jsonl"),
+                    intervalSeconds: photoIntervalSeconds
+                )
+                if let recorder = self.videoRecorder, let device = recorder.captureDevice {
+                    capture.startAttached(to: recorder.captureSession,
+                                          sessionQueue: recorder.captureSessionQueue,
+                                          device: device)
+                } else {
+                    capture.startStandalone()
+                }
+                self.photoCapture = capture
+            }
+
             isRecording = true
             startUITimer()
             logger.info("Recording started for session \(self.sessionId, privacy: .public)")
@@ -158,16 +190,22 @@ final class RecordingController: ObservableObject {
         motionSource?.stop()
         locationSource?.stop()
         locationSource?.onRecord = nil
+        // Stop firing new stills before we tear the capture session down.
+        photoCapture?.stop()
 
         let motionRows = motionWriter?.rowCount ?? 0
         let locationRows = locationWriter?.rowCount ?? 0
         let hadVideo = videoRecorder != nil
+        let photosSaved = photoCapture?.photoCount ?? 0
         let endUTC = clock?.nowUTC() ?? Date().timeIntervalSince1970
 
         Task {
             // Finalise the movie (async) before writing the manifest.
             if let recorder = videoRecorder {
                 await recorder.stop()
+            }
+            if photosSaved > 0 {
+                logger.info("Captured \(photosSaved) dashboard stills")
             }
             motionWriter?.close()
             locationWriter?.close()
@@ -192,6 +230,7 @@ final class RecordingController: ObservableObject {
             // Reset transient owners.
             self.motionSource = nil
             self.videoRecorder = nil
+            self.photoCapture = nil
             self.motionWriter = nil
             self.locationWriter = nil
         }
@@ -310,6 +349,7 @@ final class RecordingController: ObservableObject {
         motionCount = mCount
         locationCount = locationWriter?.rowCount ?? 0
         videoFrameCount = videoRecorder?.frameCount ?? 0
+        photoCount = photoCapture?.photoCount ?? 0
         gpsHorizontalAccuracy = locationSource?.lastHorizontalAccuracy
 
         let now = Date()
@@ -325,9 +365,11 @@ final class RecordingController: ObservableObject {
     private func cleanupAfterFailure() {
         motionSource?.stop()
         locationSource?.stop()
+        photoCapture?.stop()
         motionWriter?.close()
         locationWriter?.close()
         motionSource = nil
+        photoCapture = nil
         motionWriter = nil
         locationWriter = nil
         isRecording = false

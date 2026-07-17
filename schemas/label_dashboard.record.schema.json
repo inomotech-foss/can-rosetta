@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/inomotech-foss/can-rosetta/schemas/label_dashboard.record.schema.json",
+  "title": "One numeric/needle dashboard label — a line of labels/dashboard_ocr.jsonl",
+  "type": "object",
+  "required": ["t_utc", "field", "value"],
+  "additionalProperties": false,
+  "properties": {
+    "t_utc": { "type": "number" },
+    "field": { "type": "string", "description": "element name, e.g. dash_speed, fuel_level" },
+    "value": { "type": "number" },
+    "conf": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

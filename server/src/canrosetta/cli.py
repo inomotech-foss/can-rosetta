@@ -76,6 +76,18 @@ def _cmd_import_candump(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_perceive(args: argparse.Namespace) -> int:
+    from .perception.run import perceive
+
+    counts = perceive(args.session, stride=args.stride)
+    if not counts:
+        print("no labels produced (check perception.json ROIs and the video)")
+    for name, n in sorted(counts.items()):
+        print(f"  {name}: {n} samples")
+    print("wrote labels/ — now run: canrosetta identify " + args.session)
+    return 0
+
+
 def _cmd_fingerprint(args: argparse.Namespace) -> int:
     session = load_session(args.session)
     for aid, fid in sorted(session.frames.by_id().items()):
@@ -110,6 +122,12 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("fingerprint", help="print behavioral fingerprints per arb ID")
     s.add_argument("session")
     s.set_defaults(func=_cmd_fingerprint)
+
+    s = sub.add_parser("perceive",
+                       help="dashboard-video perception -> labels/ (needs video + perception.json)")
+    s.add_argument("session")
+    s.add_argument("--stride", type=int, default=3, help="use every Nth video frame")
+    s.set_defaults(func=_cmd_perceive)
 
     s = sub.add_parser("import-candump",
                        help="convert a real `candump -L` log into a session")

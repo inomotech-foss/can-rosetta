@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/inomotech-foss/can-rosetta/schemas/label_gear.record.schema.json",
+  "title": "One gear label — a line of labels/gear.jsonl",
+  "type": "object",
+  "required": ["t_utc", "gear"],
+  "additionalProperties": false,
+  "properties": {
+    "t_utc": { "type": "number" },
+    "gear": { "type": "number", "description": "gear code; P=0,R=-1,N=1,D=2 or a numeric gear" },
+    "conf": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}
