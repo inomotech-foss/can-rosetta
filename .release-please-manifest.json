@@ -1,5 +1,6 @@
 {
   "server": "0.1.0",
   "edge/autopi": "0.1.0",
-  "companion/ios": "0.1.0"
+  "companion/ios": "0.1.0",
+  "companion/android": "0.1.0"
 }

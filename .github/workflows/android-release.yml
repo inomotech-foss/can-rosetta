@@ -1,0 +1,81 @@
+name: Android Release
+
+# Cut a release build of the companion Android app on a tag (e.g. `android-v0.1.0`)
+# or on demand. If signing secrets are present the APK is signed; otherwise an
+# unsigned APK + AAB are produced and attached so the pipeline never blocks on
+# secrets not being configured yet.
+
+on:
+  push:
+    tags:
+      - "android-v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: companion/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build release APK + AAB (unsigned)
+        run: ./gradlew --no-daemon assembleRelease bundleRelease
+
+      - name: Sign the APK (only if a keystore secret is configured)
+        id: sign
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "No ANDROID_KEYSTORE_BASE64 secret; leaving the build unsigned."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          UNSIGNED=$(ls app/build/outputs/apk/release/*-unsigned.apk | head -1)
+          "$BT/zipalign" -f 4 "$UNSIGNED" app/build/outputs/apk/release/app-release-aligned.apk
+          "$BT/apksigner" sign \
+            --ks "$RUNNER_TEMP/release.jks" --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASSWORD" \
+            --out app/build/outputs/apk/release/canrosetta-companion-release.apk \
+            app/build/outputs/apk/release/app-release-aligned.apk
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p ../../dist
+          cp app/build/outputs/apk/release/*.apk ../../dist/ 2>/dev/null || true
+          cp app/build/outputs/bundle/release/*.aab ../../dist/ 2>/dev/null || true
+          ls -l ../../dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canrosetta-companion-android
+          path: dist/*
+
+      - name: Attach to the GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          body: |
+            CAN-Rosetta Android companion — ${{ github.ref_name }}.
+            ${{ steps.sign.outputs.signed == 'true' && 'Signed release APK.' || 'Unsigned build (configure ANDROID_KEYSTORE_* secrets to sign).' }}
