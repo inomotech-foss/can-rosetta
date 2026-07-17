@@ -1,0 +1,81 @@
+@import "tokens.css";
+
+/* ============================================================================
+   CAN-Rosetta Server dashboard — component CSS.
+   Layout uses inline styles set from app.js (mirroring the design mockup);
+   this file holds the reset, animations and the handful of reusable classes.
+   All colors come from tokens.css variables — never hardcode.
+   ========================================================================== */
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body { font-family: var(--font-sans); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-subtle-text); }
+
+@keyframes crPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes crToastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.cr-app { display: flex; height: 100vh; overflow: hidden; background: var(--bg-page); }
+
+/* buttons ------------------------------------------------------------------ */
+.cr-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-sans); font-weight: 500; cursor: pointer;
+  border-radius: var(--radius-lg); border: 1px solid transparent;
+  white-space: nowrap; transition: background 0.12s ease, border-color 0.12s ease;
+}
+.cr-btn-sm { height: 32px; padding: 0 14px; font-size: 13px; }
+.cr-btn-primary { background: var(--accent-solid); color: var(--accent-text); }
+.cr-btn-primary:hover { background: var(--accent-hover); }
+.cr-btn-secondary { background: var(--bg-input); color: var(--text-primary); border-color: var(--border-input); }
+.cr-btn-secondary:hover { background: var(--bg-hover); }
+
+/* row-action buttons in tables */
+.cr-rowbtn {
+  height: 28px; padding: 0 12px; border-radius: var(--radius-lg);
+  background: var(--bg-input); border: 1px solid var(--border-input);
+  color: var(--text-primary); font-family: var(--font-sans); font-size: 12px;
+  font-weight: 500; cursor: pointer;
+}
+.cr-rowbtn:hover { background: var(--bg-hover); }
+.cr-rowbtn-danger { background: transparent; border-color: transparent; color: var(--status-danger); }
+.cr-rowbtn-danger:hover { background: var(--bg-alert-red); }
+
+/* badge (from tokens.css .badge, kept here for completeness) */
+.badge {
+  display: inline-block; font-size: 12px; font-weight: 500;
+  padding: 2px 8px; border-radius: var(--radius-full); line-height: 1.4;
+}
+
+/* sidebar nav item */
+.cr-nav {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 12px; border-radius: var(--radius-lg); border: 0; cursor: pointer;
+  background: transparent; color: var(--text-secondary);
+  font-family: var(--font-sans); font-size: 14px; font-weight: 500; text-align: left;
+}
+.cr-nav:hover { background: var(--bg-hover); color: var(--text-primary); }
+.cr-nav.active { background: var(--accent-subtle); color: var(--accent-subtle-text); }
+.cr-nav svg { flex-shrink: 0; }
+
+.cr-scroll { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+
+.cr-card {
+  background: var(--bg-card); border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow);
+}
+
+/* table rows that respond to hover (session list) */
+.cr-row-hover { cursor: pointer; }
+.cr-row-hover:hover { background: var(--bg-hover); }
+
+.cr-eyebrow {
+  font-size: 12px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-secondary);
+}
+
+pre { margin: 0; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border-secondary); border-radius: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
