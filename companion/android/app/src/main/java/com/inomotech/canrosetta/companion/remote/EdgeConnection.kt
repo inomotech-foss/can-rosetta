@@ -77,7 +77,10 @@ class EdgeConnection(context: Context) {
         prefs.edit().putString(KEY_MODE, value.wire).apply()
     }
 
-    private fun isConfigured(): Boolean = host.value.trim().isNotEmpty()
+    fun isConfigured(): Boolean = host.value.trim().isNotEmpty()
+
+    /** True once the edge health check has succeeded (used by the drive flow). */
+    fun isConnected(): Boolean = _state.value.conn == ConnState.CONNECTED
 
     private fun client(): EdgeControlClient = EdgeControlClient(host.value, token.value)
 
@@ -106,32 +109,68 @@ class EdgeConnection(context: Context) {
         }
     }
 
+    /**
+     * The drive-flow "Pair" action: run the health check and, on success, a
+     * Cristian time-sync in one coroutine, so the Pair screen can show
+     * "handshake complete" with the offset/rtt. Mirrors the iOS `pairManually()`.
+     */
+    fun pair() {
+        scope.launch {
+            if (!isConfigured()) {
+                update { it.copy(conn = ConnState.FAILED, connMessage = "Enter the AutoPi host first") }
+                return@launch
+            }
+            update { it.copy(conn = ConnState.CONNECTING, lastError = null) }
+            try {
+                val health = client().health()
+                update {
+                    it.copy(
+                        swVersion = health.swVersion,
+                        conn = if (health.ok) ConnState.CONNECTED else ConnState.FAILED,
+                        connMessage = if (health.ok) null else "AutoPi reported not-ok",
+                    )
+                }
+                if (health.ok) {
+                    refreshStatus()
+                    performTimeSync(5)
+                }
+            } catch (e: Exception) {
+                update { it.copy(conn = ConnState.FAILED, connMessage = errorMessage(e)) }
+            }
+        }
+    }
+
     // MARK: - Time sync (Cristian's algorithm)
 
     fun syncTime(samples: Int = 5) {
         scope.launch {
             if (!isConfigured()) return@launch
-            update { it.copy(lastError = null) }
-            val cl = client()
-            var best: Pair<Double, Double>? = null // offset, rtt
-            repeat(maxOf(1, samples)) {
-                val t0 = clock.nowUtc()
-                try {
-                    val response = cl.time()
-                    val t1 = clock.nowUtc()
-                    val rtt = t1 - t0
-                    val edgeAtT1 = response.tUtc + rtt / 2
-                    val offset = edgeAtT1 - t1
-                    if (best == null || rtt < best!!.second) best = offset to rtt
-                } catch (e: Exception) {
-                    update { it.copy(lastError = errorMessage(e)) }
-                    return@launch
-                }
+            performTimeSync(samples)
+        }
+    }
+
+    /** Run the Cristian sync loop, keeping the smallest-round-trip sample. */
+    private suspend fun performTimeSync(samples: Int) {
+        update { it.copy(lastError = null) }
+        val cl = client()
+        var best: Pair<Double, Double>? = null // offset, rtt
+        repeat(maxOf(1, samples)) {
+            val t0 = clock.nowUtc()
+            try {
+                val response = cl.time()
+                val t1 = clock.nowUtc()
+                val rtt = t1 - t0
+                val edgeAtT1 = response.tUtc + rtt / 2
+                val offset = edgeAtT1 - t1
+                if (best == null || rtt < best!!.second) best = offset to rtt
+            } catch (e: Exception) {
+                update { it.copy(lastError = errorMessage(e)) }
+                return
             }
-            best?.let { b ->
-                update { it.copy(timeOffset = b.first, timeRoundTrip = b.second) }
-                Log.i(AppInfo.TAG, "Time sync offset=${b.first}s rtt=${b.second}s")
-            }
+        }
+        best?.let { b ->
+            update { it.copy(timeOffset = b.first, timeRoundTrip = b.second) }
+            Log.i(AppInfo.TAG, "Time sync offset=${b.first}s rtt=${b.second}s")
         }
     }
 

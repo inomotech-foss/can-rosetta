@@ -84,6 +84,9 @@ dependencies {
     // Fused location
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
+    // On-device QR decoding for the pairing viewfinder (CameraX ImageAnalysis feed).
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
     // Networking (control protocol client + websocket)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
