@@ -1,0 +1,58 @@
+name: Release Please
+
+# Mirrors inomotech-foss/paperplane: Release Please watches conventional commits
+# on main and maintains a "release PR" per component (server / edge / ios). Merging
+# that release PR cuts a GitHub Release + tag (e.g. server-v0.2.0) — and, in the
+# SAME run, this workflow builds the release artifacts (the server container image,
+# etc.). Doing the builds here (rather than on a tag trigger) sidesteps the
+# GITHUB_TOKEN "a workflow can't trigger another workflow" limitation.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      server_released: ${{ steps.rp.outputs['server--release_created'] }}
+      server_version: ${{ steps.rp.outputs['server--version'] }}
+      server_tag: ${{ steps.rp.outputs['server--tag_name'] }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # When a server release is cut, build & push the versioned container image.
+  server-image:
+    needs: release-please
+    if: needs.release-please.outputs.server_released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: server
+          file: server/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/inomotech-foss/can-rosetta-server:${{ needs.release-please.outputs.server_version }}
+            ghcr.io/inomotech-foss/can-rosetta-server:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
