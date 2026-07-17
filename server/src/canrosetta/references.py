@@ -33,6 +33,9 @@ def build_references(session: Session) -> list[TimeSeries]:
     refs += _edge_gps_references(session)
     # Dashboard-video-derived references reach signals no OBD PID exposes.
     refs += _video_label_references(session)
+    # EV-specific derived references (regen braking, SoC/current from EV OBD).
+    from .ev import ev_references
+    refs += ev_references(session)
     return [r for r in refs if len(r.t) >= 8]
 
 
@@ -91,6 +94,7 @@ def _edge_imu_references(session: Session) -> list[TimeSeries]:
     mag = np.linalg.norm(acc, axis=0)
     return [
         TimeSeries("edge_imu_accel_mag", t, mag, unit="g", clock="edge"),
+        TimeSeries("edge_imu_accel_long", t, m["acc_x"], unit="g", clock="edge"),
         TimeSeries("edge_imu_yaw_rate", t, m["rot_z"], unit="rad/s", clock="edge"),
     ]
 
@@ -136,6 +140,9 @@ def _imu_references(session: Session) -> list[TimeSeries]:
     yaw_rate = m["rot_z"]  # rad/s about vertical ~ turn rate
     return [
         TimeSeries("imu_accel_mag", t, mag, unit="g"),
+        # signed longitudinal accel (x): positive = tractive, negative = braking/regen.
+        # Its sign is what distinguishes motor torque / battery current from |accel|.
+        TimeSeries("imu_accel_long", t, m["acc_x"], unit="g"),
         TimeSeries("imu_yaw_rate", t, yaw_rate, unit="rad/s"),
     ]
 

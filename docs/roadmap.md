@@ -26,8 +26,10 @@ recorded sessions; the learned foundation model is scaffolded, not yet trained.
 - [ ] **Multiplexed signal handling** in extraction (multiplexed CAN frames).
 - [ ] **Phone→vehicle frame estimation** so IMU axes become true longitudinal /
       lateral acceleration references.
-- [ ] **EV-specific signals** (SoC, pack voltage/current, cell temps, regen,
-      motor torque) and command-vs-status message classification.
+- [x] **EV-specific signals**: signed motion references + regen event + EV OBD
+      SoC + battery-power/Coulomb priors identify pack current/voltage/SoC
+      (`ev.py`). Still to do: per-OEM UDS DID catalogs, cell-level signals.
+- [ ] **Command-vs-status message classification** (passive causality analysis).
 
 ## Foundation model
 

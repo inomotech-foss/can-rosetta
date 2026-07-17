@@ -30,6 +30,7 @@ SPEED_ID = 0x3C0
 RPM_ID = 0x1F0
 NOISE_ID = 0x2A0
 BODY_ID = 0x3B0  # body module: turn-signal telltale (byte0 MSB) + gear (byte1)
+BATT_ID = 0x4A0  # EV battery module: pack voltage, signed pack current, SoC
 
 
 def _turn_signal(t: float) -> int:
@@ -58,14 +59,25 @@ def _checksum(b: bytes) -> int:
     return c ^ 0xA5
 
 
+def generate_ev(out_dir: str | Path, **kw) -> Path:
+    """Write a synthetic *electric*-vehicle session (adds a battery module)."""
+    return generate(out_dir, ev=True, **kw)
+
+
 def generate(
     out_dir: str | Path,
     *,
     duration_s: float = 120.0,
     edge_clock_offset_s: float = 0.7,
     seed: int = 7,
+    ev: bool = False,
 ) -> Path:
-    """Write a synthetic session and return its path."""
+    """Write a synthetic session and return its path.
+
+    With ``ev=True`` a battery module (0x4A0) is added: pack voltage, signed pack
+    current (positive under acceleration, **negative under regen**), and SoC —
+    plus EV OBD samples — so EV signal identification can be exercised.
+    """
     rng = np.random.default_rng(seed)
     out = Path(out_dir)
     (out / "can").mkdir(parents=True, exist_ok=True)
@@ -84,6 +96,15 @@ def generate(
     gear = np.clip((speed_kmh // 12).astype(int), 0, 5)
     turn = np.array([_turn_signal(float(x)) for x in tt])
     frac_in_gear = (speed_kmh - gear * 12) / 12.0
+
+    # EV battery: current tracks signed longitudinal accel (drive +, regen -);
+    # voltage sags under discharge; SoC coulomb-counts down from 80%.
+    accel_g = accel_ms2 / 9.81
+    # high gain + low base so deceleration drives current clearly NEGATIVE (regen):
+    # this is what makes the *signed* interpretation win over unsigned.
+    batt_current_a = 400.0 * accel_g + 5.0 + rng.normal(0, 1.5, tt.shape)  # signed amps
+    batt_voltage_v = 360.0 - 0.05 * batt_current_a + rng.normal(0, 0.2, tt.shape)
+    batt_soc = 80.0 - np.cumsum(batt_current_a * 0.01) / 3600.0 * 100.0 / 60.0
     base_rpm = 1000 + frac_in_gear * 2500  # 1000 idle .. ~3500 redline-ish
     rpm_can = base_rpm + rng.normal(0, 15, tt.shape)  # noise seen by the CAN frame
 
@@ -119,6 +140,16 @@ def generate(
         b[3] = 0x55  # constant padding
         return bytes(b)
 
+    def batt_frame(i: int) -> bytes:
+        b = bytearray(8)
+        v = int(round(batt_voltage_v[i] * 10)) & 0xFFFF  # 0.1 V/bit, bytes 0-1 BE
+        c = int(round(batt_current_a[i] * 10)) & 0xFFFF  # signed 0.1 A/bit, bytes 2-3 BE
+        soc = int(round(batt_soc[i] * 10)) & 0xFFFF  # 0.1 %/bit, bytes 4-5 BE
+        b[0], b[1] = (v >> 8) & 0xFF, v & 0xFF
+        b[2], b[3] = (c >> 8) & 0xFF, c & 0xFF
+        b[4], b[5] = (soc >> 8) & 0xFF, soc & 0xFF
+        return bytes(b)
+
     # 0x3C0 @ 50 Hz, 0x1F0 @ 20 Hz, plus a noise frame @ 10 Hz
     for k in range(int(duration_s * 50)):
         i = min(int(k / 50 / 0.01), len(tt) - 1)
@@ -132,6 +163,11 @@ def generate(
         i = min(int(k / 20 / 0.01), len(tt) - 1)
         mono = k / 20.0
         frames.append(_frame(mono, t0_true + edge_clock_offset_s, BODY_ID, body_frame(i)))
+    if ev:
+        for k in range(int(duration_s * 20)):  # battery module @ 20 Hz
+            i = min(int(k / 20 / 0.01), len(tt) - 1)
+            mono = k / 20.0
+            frames.append(_frame(mono, t0_true + edge_clock_offset_s, BATT_ID, batt_frame(i)))
     for k in range(int(duration_s * 10)):
         mono = k / 10.0
         noise = bytes(int(x) for x in rng.integers(0, 256, 8))
@@ -151,9 +187,13 @@ def generate(
         obd_samples.append(_obd(t_utc, 0x0D, "vehicle_speed", round(float(speed_kmh[i])), "km/h"))
         obd_samples.append(_obd(t_utc, 0x0C, "engine_rpm", round(obd_rpm), "rpm"))
         obd_samples.append(_obd(t_utc, 0x05, "coolant_temp", 40 + round(k / 20), "degC"))
+        if ev:  # EV state-of-charge is readable via a standard-ish OBD PID
+            obd_samples.append(_obd(t_utc, 0x5B, "hybrid_battery_remaining",
+                                    round(float(batt_soc[i]), 1), "%"))
+    supported = ["0x05", "0x0C", "0x0D"] + (["0x5B"] if ev else [])
     discovery = {
         "schema_version": SCHEMA,
-        "obd": {"supported_pids": ["0x05", "0x0C", "0x0D"], "samples": obd_samples},
+        "obd": {"supported_pids": supported, "samples": obd_samples},
         "uds": {"responding_dids": ["0xF190"], "ecus": [{"tx_id": "0x7E0", "rx_id": "0x7E8"}]},
         "plain_can": {
             "arb_ids": [
@@ -282,6 +322,13 @@ def generate(
         "gear": {"arb_id": hex(BODY_ID), "byte": 1},
         "edge_clock_offset_s": edge_clock_offset_s,
     }
+    if ev:
+        ground_truth["ev"] = {
+            "hv_battery_voltage": {"arb_id": hex(BATT_ID), "bytes": [0, 1], "scale": 0.1},
+            "hv_battery_current": {"arb_id": hex(BATT_ID), "bytes": [2, 3], "signed": True,
+                                   "scale": 0.1, "note": "negative under regen"},
+            "hv_battery_soc": {"arb_id": hex(BATT_ID), "bytes": [4, 5], "scale": 0.1, "unit": "%"},
+        }
     (out / "ground_truth.json").write_text(json.dumps(ground_truth, indent=2))
     return out
 

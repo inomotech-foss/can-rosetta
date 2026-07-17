@@ -23,8 +23,9 @@ from .synth import generate
 
 
 def _cmd_make_sample(args: argparse.Namespace) -> int:
-    out = generate(args.dir, duration_s=args.duration, edge_clock_offset_s=args.offset)
-    print(f"wrote synthetic session to {out}")
+    out = generate(args.dir, duration_s=args.duration, edge_clock_offset_s=args.offset,
+                   ev=args.ev)
+    print(f"wrote synthetic {'EV ' if args.ev else ''}session to {out}")
     return 0
 
 
@@ -109,6 +110,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("dir")
     s.add_argument("--duration", type=float, default=120.0)
     s.add_argument("--offset", type=float, default=0.7, help="edge clock offset (s)")
+    s.add_argument("--ev", action="store_true",
+                   help="add an EV battery module (voltage/current/SoC)")
     s.set_defaults(func=_cmd_make_sample)
 
     s = sub.add_parser("identify", help="align + extract + identify signals")
