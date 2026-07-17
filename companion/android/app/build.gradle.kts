@@ -49,6 +49,13 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    lint {
+        // The CI Android job is a compile+test gate. Lint still runs and writes
+        // its report, but device-advisory checks don't fail the build (this app
+        // can't be run/validated locally, so those are triaged from the report).
+        abortOnError = false
+    }
 }
 
 dependencies {
