@@ -209,15 +209,29 @@ xcodegen generate            # produces CanRosettaCompanion.xcodeproj
 open CanRosettaCompanion.xcodeproj
 ```
 
-Set your Apple Developer team in `project.yml` (`DEVELOPMENT_TEAM`) or in Xcode's
-Signing & Capabilities, then build/run on a device (sensors and camera do not
-work in the Simulator).
+### Running on a device (signing)
+
+Signing is **automatic** and configured in [`Signing.xcconfig`](Signing.xcconfig),
+which `project.yml` wires in via `configFiles`. To run on a device, set your Apple
+Developer Team ID in a local, gitignored override (once) — it survives
+`xcodegen generate` and is never committed:
+
+```sh
+echo 'DEVELOPMENT_TEAM = XXXXXXXXXX' > companion/ios/Signing.local.xcconfig
+xcodegen generate && open companion/ios/CanRosettaCompanion.xcodeproj
+```
+
+(Find your team under Xcode ▸ Settings ▸ Accounts, or
+`security find-identity -v -p codesigning`.) Then build/run on a device from
+Xcode — the Apple ID you add in Xcode's Accounts provisions it automatically.
+Sensors and the camera do not work in the Simulator. No `CODE_SIGNING_*=NO` is
+baked into the project anymore, so device builds sign without any manual edit.
 
 ### CI (simulator build, no signing)
 
-CI generates the project and builds it for the iOS Simulator without code
-signing (the target sets `CODE_SIGNING_REQUIRED=NO` / `CODE_SIGN_IDENTITY=""`,
-and `project.yml` defines a shared scheme named `CanRosettaCompanion`):
+CI generates the project and builds it for the iOS Simulator, disabling signing
+**on the command line** (`CODE_SIGNING_ALLOWED=NO`) rather than in the project —
+so device builds still sign while the Simulator build needs no team:
 
 ```sh
 cd companion/ios && xcodegen generate

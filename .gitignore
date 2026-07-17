@@ -35,6 +35,8 @@ DerivedData/
 build/
 # XcodeGen is the source of truth; the .xcodeproj is generated (see companion/ios/README.md)
 *.xcodeproj/
+# Per-developer signing (Apple Team ID) — never commit; see Signing.xcconfig
+Signing.local.xcconfig
 
 # Editors
 .idea/

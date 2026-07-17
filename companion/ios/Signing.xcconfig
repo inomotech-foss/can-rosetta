@@ -1,0 +1,17 @@
+// Code signing for the CAN-Rosetta companion app.
+//
+// Automatic signing: Xcode signs device builds with your team; the Simulator
+// needs no signing, and CI passes CODE_SIGNING_ALLOWED=NO on the command line.
+//
+// To run on a *device*, set your Apple Developer Team ID in a local, gitignored
+// override (it survives `xcodegen generate` and is never committed):
+//
+//     echo 'DEVELOPMENT_TEAM = XXXXXXXXXX' > companion/ios/Signing.local.xcconfig
+//
+// (Team IDs are visible under Xcode ▸ Settings ▸ Accounts, or
+// `security find-identity -v -p codesigning`.)
+
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"
