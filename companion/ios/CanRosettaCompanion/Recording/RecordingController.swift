@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import CoreLocation
+import CoreMotion
 import os
 
 /// Orchestrates one recording session: owns the sensor sources, the writers and
@@ -44,9 +45,27 @@ final class RecordingController: ObservableObject {
     @Published private(set) var locationAuthorization: CLAuthorizationStatus = .notDetermined
     /// Seconds since recording started.
     @Published private(set) var elapsed: TimeInterval = 0
+    /// Cumulative ground distance from GPS fixes (metres).
+    @Published private(set) var distanceMeters: Double = 0
+    /// Rolling standard deviation of accelerometer magnitude (g), measured by the
+    /// pre-flight standby monitor — a proxy for how much the cradle rattles.
+    @Published private(set) var mountVibrationRMS: Double = 0
+    /// Whether the standby vibration monitor has enough data to judge the mount.
+    @Published private(set) var hasMountData = false
+    /// Sync markers (e.g. triple brake-flash) pinned into this session. Written
+    /// into the manifest's `sync_markers` at stop, and re-persisted if a marker
+    /// is pinned just after stopping.
+    @Published private(set) var syncMarkers: [Manifest.SyncMarker] = []
     /// URL of the exportable zip archive produced at stop (for sharing).
     @Published private(set) var exportURL: URL?
     @Published private(set) var lastError: String?
+
+    /// The standby monitor treats the cradle as steady below this g-RMS.
+    let mountVibrationThreshold: Double = 0.08
+
+    /// True when the phone is judged steady enough to record (or when we have no
+    /// accelerometer data at all, e.g. the Simulator).
+    var mountSteady: Bool { !hasMountData || mountVibrationRMS < mountVibrationThreshold }
 
     // MARK: - Internals
 
@@ -67,6 +86,17 @@ final class RecordingController: ObservableObject {
     private var uiTimer: Timer?
     private var lastRateSampleCount = 0
     private var lastRateSampleTime = Date()
+
+    // Distance accumulation from GPS fixes.
+    private var lastFixLocation: CLLocation?
+
+    // Pre-flight standby vibration monitor (independent of the recording IMU).
+    private let standbyMotion = CMMotionManager()
+    private var accelMagnitudes: [Double] = []
+
+    // Cached inputs so a post-stop sync marker can re-write the manifest/archive.
+    private var finalizeStreams: [Manifest.Stream] = []
+    private var finalizeEndUTC: Double = 0
 
     /// A persistent location source so we can request authorization and show
     /// GPS status before the user hits record.
@@ -99,6 +129,11 @@ final class RecordingController: ObservableObject {
         guard !isRecording else { return }
         lastError = nil
         exportURL = nil
+        distanceMeters = 0
+        lastFixLocation = nil
+        syncMarkers = []
+        // The recording IMU takes over from the standby vibration monitor.
+        stopVibrationMonitor()
 
         do {
             let clock = Clock()
@@ -125,8 +160,10 @@ final class RecordingController: ObservableObject {
             let location = standbyLocation
             location.onRecord = { [weak self] record in
                 locationWriter.append(record)
-                if record.hAcc >= 0 {
-                    Task { @MainActor in self?.gpsHorizontalAccuracy = record.hAcc }
+                Task { @MainActor in
+                    guard let self else { return }
+                    if record.hAcc >= 0 { self.gpsHorizontalAccuracy = record.hAcc }
+                    self.accumulateDistance(record)
                 }
             }
             self.locationSource = location
@@ -210,29 +247,40 @@ final class RecordingController: ObservableObject {
             motionWriter?.close()
             locationWriter?.close()
 
-            do {
-                try writeManifest(
-                    motionRows: motionRows,
-                    locationRows: locationRows,
-                    hadVideo: hadVideo,
-                    videoFrames: videoRecorder?.frameCount ?? 0,
-                    startUTC: startUTC,
-                    endUTC: endUTC
-                )
-                let archive = try exportArchive()
-                self.exportURL = archive
-                logger.info("Session finalised and archived at \(archive.lastPathComponent, privacy: .public)")
-            } catch {
-                logger.error("Failed to finalise session: \(error.localizedDescription)")
-                self.lastError = error.localizedDescription
-            }
+            // Cache the stream set + end time so a sync marker pinned just after
+            // stopping can re-write the manifest and re-export the archive.
+            self.finalizeStreams = buildStreams(
+                motionRows: motionRows,
+                locationRows: locationRows,
+                hadVideo: hadVideo,
+                videoFrames: videoRecorder?.frameCount ?? 0,
+                startUTC: startUTC,
+                endUTC: endUTC
+            )
+            self.finalizeEndUTC = endUTC
+            await rewriteManifestAndExport()
 
-            // Reset transient owners.
+            // Reset transient owners. Keep `clock` and `sessionDir` so a
+            // post-stop sync marker can stamp and re-persist.
             self.motionSource = nil
             self.videoRecorder = nil
             self.photoCapture = nil
             self.motionWriter = nil
             self.locationWriter = nil
+        }
+    }
+
+    // MARK: - Sync markers
+
+    /// Pin a sync marker (e.g. a triple brake-flash) into the current session.
+    /// If recording, it lands in the manifest at stop; if pinned just after stop
+    /// (the guided "sync marker" step), the manifest and archive are re-written.
+    func addSyncMarker(kind: String, count: Int? = nil) {
+        let t = clock?.nowUTC() ?? Date().timeIntervalSince1970
+        syncMarkers.append(Manifest.SyncMarker(kind: kind, tUtc: t, count: count))
+        logger.info("Pinned sync marker \(kind, privacy: .public) at \(t)")
+        if !isRecording, sessionDir != nil {
+            Task { await rewriteManifestAndExport() }
         }
     }
 
@@ -244,16 +292,14 @@ final class RecordingController: ObservableObject {
 
     // MARK: - Manifest & export
 
-    private func writeManifest(
+    private func buildStreams(
         motionRows: Int,
         locationRows: Int,
         hadVideo: Bool,
         videoFrames: Int,
         startUTC: Double,
         endUTC: Double
-    ) throws {
-        guard let dir = sessionDir else { throw CocoaError(.fileNoSuchFile) }
-
+    ) -> [Manifest.Stream] {
         var streams: [Manifest.Stream] = [
             Manifest.Stream(path: "phone/motion.jsonl", kind: "motion", rows: motionRows,
                             index: nil, tStartUtc: startUTC, tEndUtc: endUTC),
@@ -265,24 +311,34 @@ final class RecordingController: ObservableObject {
                 path: "phone/video.mp4", kind: "video", rows: videoFrames,
                 index: "phone/video_index.jsonl", tStartUtc: startUTC, tEndUtc: endUTC))
         }
+        return streams
+    }
 
+    /// Write `manifest.json` (with the current sync markers) and re-export the
+    /// zip archive. Safe to call again after stop when a marker is pinned.
+    private func rewriteManifestAndExport() async {
+        guard let dir = sessionDir else { return }
         // We report clock source "gps" (full-accuracy GNSS runs the whole
         // session). Honest caveat: iOS does not expose raw GPS time, so the
         // absolute offset is the system clock's; err_est_s reflects that we
         // cannot verify sub-100ms UTC accuracy on-device.
-        let clockBlock = Manifest.Device.Clock(
-            source: "gps",
-            utcOffsetEstS: 0.0,
-            errEstS: 0.1
-        )
-
+        let clockBlock = Manifest.Device.Clock(source: "gps", utcOffsetEstS: 0.0, errEstS: 0.1)
         let manifest = Manifest.make(
             sessionId: sessionId,
             createdUtc: startUTC,
             clock: clockBlock,
-            streams: streams
+            streams: finalizeStreams,
+            syncMarkers: syncMarkers
         )
-        try manifest.write(to: dir.appendingPathComponent("manifest.json"))
+        do {
+            try manifest.write(to: dir.appendingPathComponent("manifest.json"))
+            let archive = try exportArchive()
+            self.exportURL = archive
+            logger.info("Session finalised and archived at \(archive.lastPathComponent, privacy: .public)")
+        } catch {
+            logger.error("Failed to finalise session: \(error.localizedDescription)")
+            self.lastError = error.localizedDescription
+        }
     }
 
     /// Zip the session directory into a shareable archive using the Foundation
@@ -360,6 +416,87 @@ final class RecordingController: ObservableObject {
             lastRateSampleCount = mCount
             lastRateSampleTime = now
         }
+    }
+
+    // MARK: - Pre-flight monitors
+
+    /// Start the live checks the pre-flight screen relies on: request location +
+    /// camera, begin a standby GPS fix, and monitor accelerometer vibration to
+    /// judge how firmly the phone is cradled. Idempotent.
+    func startPreflight() {
+        // Surface standby GPS accuracy live (recording start reassigns onRecord).
+        standbyLocation.onRecord = { [weak self] record in
+            guard record.hAcc >= 0 else { return }
+            Task { @MainActor in self?.gpsHorizontalAccuracy = record.hAcc }
+        }
+        standbyLocation.requestAuthorization()
+        standbyLocation.start()
+        if filmDashboard || capturePhotos {
+            Task { _ = await VideoRecorder.requestCameraAuthorization() }
+        }
+        startVibrationMonitor()
+    }
+
+    /// Stop the pre-flight vibration monitor (called when leaving pre-flight
+    /// without recording). Location is left running; it is cheap and warms up
+    /// the GPS fix for the drive.
+    func stopPreflight() {
+        stopVibrationMonitor()
+    }
+
+    private func startVibrationMonitor() {
+        guard standbyMotion.isAccelerometerAvailable, !standbyMotion.isAccelerometerActive else { return }
+        accelMagnitudes.removeAll()
+        hasMountData = false
+        mountVibrationRMS = 0
+        standbyMotion.accelerometerUpdateInterval = 1.0 / 20.0
+        let queue = OperationQueue()
+        standbyMotion.startAccelerometerUpdates(to: queue) { [weak self] data, _ in
+            guard let a = data?.acceleration else { return }
+            let mag = (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot()
+            Task { @MainActor in self?.pushVibrationSample(mag) }
+        }
+    }
+
+    private func stopVibrationMonitor() {
+        if standbyMotion.isAccelerometerActive { standbyMotion.stopAccelerometerUpdates() }
+        accelMagnitudes.removeAll()
+        hasMountData = false
+        mountVibrationRMS = 0
+    }
+
+    /// Rolling standard deviation of accelerometer magnitude over ~2 s.
+    private func pushVibrationSample(_ mag: Double) {
+        accelMagnitudes.append(mag)
+        if accelMagnitudes.count > 40 {
+            accelMagnitudes.removeFirst(accelMagnitudes.count - 40)
+        }
+        guard accelMagnitudes.count >= 10 else { return }
+        let n = Double(accelMagnitudes.count)
+        let mean = accelMagnitudes.reduce(0, +) / n
+        let variance = accelMagnitudes.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / n
+        mountVibrationRMS = variance.squareRoot()
+        hasMountData = true
+    }
+
+    private func accumulateDistance(_ record: LocationRecord) {
+        guard record.hAcc >= 0 else { return }
+        let loc = CLLocation(latitude: record.lat, longitude: record.lon)
+        if let last = lastFixLocation {
+            let step = loc.distance(from: last)
+            if step.isFinite { distanceMeters += step }
+        }
+        lastFixLocation = loc
+    }
+
+    /// Whether device motion (the recording IMU) is available on this device.
+    var isMotionAvailable: Bool { standbyMotion.isDeviceMotionAvailable }
+
+    /// Free disk available for important usage, in bytes (nil if unknown).
+    static func freeDiskBytes() -> Int64? {
+        let url = URL(fileURLWithPath: NSHomeDirectory())
+        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage
     }
 
     private func cleanupAfterFailure() {

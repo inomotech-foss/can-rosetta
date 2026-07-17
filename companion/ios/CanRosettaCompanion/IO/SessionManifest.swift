@@ -68,7 +68,8 @@ extension Manifest {
         createdUtc: Double,
         clock: Manifest.Device.Clock,
         streams: [Manifest.Stream],
-        mount: String? = nil
+        mount: String? = nil,
+        syncMarkers: [Manifest.SyncMarker]? = nil
     ) -> Manifest {
         let device = Manifest.Device(
             role: "companion",
@@ -85,7 +86,7 @@ extension Manifest {
             vehicle: nil,
             devices: [device],
             streams: streams,
-            syncMarkers: nil
+            syncMarkers: (syncMarkers?.isEmpty ?? true) ? nil : syncMarkers
         )
     }
 
