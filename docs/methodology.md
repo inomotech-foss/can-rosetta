@@ -153,6 +153,25 @@ reinventing it. Techniques adopted:
 - **opendbc as ground truth** (comma.ai): the public DBCs let us score recovered
   signals against real definitions.
 
+## Electric vehicles
+
+EVs put a distinctive signal family on the bus — HV **battery** voltage/current,
+**state of charge**, **cell** voltages/temps, **motor** speed/torque, and
+**regenerative braking** — handled in [`ev.py`](../server/src/canrosetta/ev.py):
+
+- **Signed longitudinal acceleration** is the key reference: motor torque and
+  battery current are *signed* (positive under drive, **negative under regen**),
+  so `imu_accel_long` distinguishes them from `|accel|`. A CAN field that tracks
+  signed accel and dips below zero on deceleration is the current/torque signal —
+  and the sign is why its *signed* interpretation wins over unsigned.
+- **Regen event**: deceleration that isn't the friction brake, derived as a
+  reference the current/torque sign should follow.
+- **Physical priors**: battery power = V·I (links three candidates), and SoC is
+  the Coulomb integral of current (`soc_from_current` cross-checks a candidate SoC
+  against a candidate current). SoC is also readable directly via OBD PID `0x5B`.
+- Edge discovery reads PID `0x5B` in the fast scan; deeper EV battery data is
+  manufacturer-specific UDS (`0x22`), reached by the brute-force DID sweep.
+
 Where we go beyond them: ByCAN and peers (CAN-D, READ) decode from CAN + the
 standard OBD-II PID set alone. We ground the bus in a *much richer* reference
 corpus — phone and **onboard (edge-clock) IMU/GNSS**, plus OCR'd dashboard video

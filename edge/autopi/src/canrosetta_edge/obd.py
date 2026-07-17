@@ -62,6 +62,9 @@ PIDS: Dict[int, Pid] = {
     0x42: Pid(0x42, "control_module_voltage", 2, "V",
               lambda d: (256 * _A(d) + _B(d)) / 1000.0),
     0x46: Pid(0x46, "ambient_temp", 1, "degC", lambda d: _A(d) - 40.0),
+    # EV / hybrid: standardized SoC-style PID. Most EV battery detail is
+    # manufacturer-specific UDS (read via 0x22), but this one is standard.
+    0x5B: Pid(0x5B, "hybrid_battery_remaining", 1, "%", lambda d: _A(d) * 100.0 / 255.0),
 }
 
 # PIDs whose only purpose is to advertise which other PIDs are supported.
