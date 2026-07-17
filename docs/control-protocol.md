@@ -107,6 +107,19 @@ start logging. `duration_s` null means log until `POST /api/log/stop`.
 ### `GET /api/discovery`
 Returns the current `discovery.json` contents (or `404` if none yet).
 
+### `GET /api/version`
+The installed edge version, and (with `?check=1`, a best-effort network call) the
+latest `edge-v*` release: `{ "current": "0.1.0", "latest": "0.3.0",
+"update_available": true, "repo": "inomotech-foss/can-rosetta" }`. Backs the
+phone's "Update AutoPi" affordance (see [provisioning.md](provisioning.md)).
+
+### `POST /api/update`
+`{ "target": "edge-v0.3.0" }` (omit for latest) → pip-installs that release of
+`canrosetta-edge` from the **official repo** over HTTPS and re-execs into it.
+Returns `{ "from", "to", "restarting": true }`. Refuses a non-official source, a
+disabled `allow_remote_update`, or running mid-recording (`409`). Read-only w.r.t.
+the vehicle — it updates the edge *software* only.
+
 ### `GET /api/ws`  (WebSocket)
 After the HTTP upgrade (same bearer token via the `Authorization` header or a
 `?token=` query param), the server streams newline events as JSON:

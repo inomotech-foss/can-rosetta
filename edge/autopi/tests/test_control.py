@@ -117,3 +117,18 @@ def test_websocket_streams_events(tmp_path):
             await ws.close()
 
     asyncio.run(run())
+
+
+def test_version_endpoint_reports_current(tmp_path):
+    async def run():
+        client, _ = _make_client(tmp_path)
+        auth = {"Authorization": f"Bearer {TOKEN}"}
+        async with client:
+            r = await client.get("/api/version", headers=auth)  # no network check
+            assert r.status == 200
+            body = await r.json()
+            assert body["current"]
+            assert body["repo"] == "inomotech-foss/can-rosetta"
+            assert body["update_available"] is False
+
+    asyncio.run(run())

@@ -22,6 +22,10 @@ It also:
   over the AutoPi's own WiFi (see [control-protocol.md](../../docs/control-protocol.md)).
 - **Holds a wake lock** while discovering/logging so the AutoPi never sleeps
   mid-recording.
+- **Self-provisions and updates from the phone**: bootstrap once
+  (`scripts/bootstrap.sh`), then the phone updates the edge app over the control
+  link (`POST /api/update`, official source only). See
+  [docs/provisioning.md](../../docs/provisioning.md).
 
 The output is a **session part** in the shared
 [data format](../../docs/data-format.md); the CAN-Rosetta server merges it with

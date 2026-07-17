@@ -31,6 +31,13 @@ The brute-force sweep only enumerates the read services above. Any service that
 could change vehicle state is out of scope for this project and PRs adding them
 will be declined.
 
+**Over-the-air updates are software-only.** The phone can update the AutoPi's edge
+app (`POST /api/update`), but it installs **only** `canrosetta-edge` from the
+official `inomotech-foss/can-rosetta` repo over HTTPS at a pinned `edge-v*` tag — a
+non-official source is refused, and it can be disabled with
+`allow_remote_update: false`. Updating the edge software has no bearing on the
+read-only-vehicle guarantee; it never issues a vehicle service.
+
 **Command identification is passive.** The server can *identify* which messages
 are commands (by observing that a message's change precedes its effect — see
 `roles.py`), and can *decode* their structure into a DBC. It does **not**, and
