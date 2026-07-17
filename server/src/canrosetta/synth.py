@@ -64,6 +64,130 @@ def generate_ev(out_dir: str | Path, **kw) -> Path:
     return generate(out_dir, ev=True, **kw)
 
 
+CHARGE_ID = 0x4B0  # charge module: state, mode, phases, AC voltage/current, active flag
+
+
+def generate_ev_charging(out_dir: str | Path, *, duration_s: float = 120.0,
+                         seed: int = 11) -> Path:
+    """Write a synthetic EV **charging** session (parked + plugged in, 3-phase AC).
+
+    Driving references are flat; charging signals are grounded by the charge-state
+    timeline (a telltale + the car's charge-screen OCR), the OCR'd EVSE meter
+    (AC voltage/current/power), and rising SoC. Ground truth is a battery module
+    (0x4A0) and a charge module (0x4B0).
+    """
+    rng = np.random.default_rng(seed)
+    out = Path(out_dir)
+    (out / "can").mkdir(parents=True, exist_ok=True)
+    (out / "labels").mkdir(parents=True, exist_ok=True)
+    t0 = 1_752_624_000.0
+
+    tt = np.arange(0, duration_s, 0.01)
+    c0, c1 = 20.0, duration_s - 20.0  # charging window
+    state = np.select(
+        [tt < 10, tt < 15, tt < c0, tt < c1],
+        [0, 1, 2, 3], default=4,
+    ).astype(int)  # idle, connected, locked, charging, complete
+    charging = state == 3
+    progress = np.clip((tt - c0) / max(c1 - c0, 1e-6), 0, 1)
+    ac_v = np.where(charging, 230.0 + rng.normal(0, 0.5, tt.shape), 0.0)
+    ac_i = np.where(charging, 16.0 + rng.normal(0, 0.2, tt.shape), 0.0)
+    pack_i = np.where(charging, -50.0, 0.0)  # negative == charging
+    soc = 20.0 + 40.0 * progress  # % rising 20 -> 60 while charging (distinctive ramp)
+    # pack voltage is a 2-level on/off, NOT ~soc, so SoC stays the only ramp-shaped
+    # signal and is uniquely identifiable (voltage∝soc would make them collinear).
+    pack_v = np.where(charging, 380.0, 360.0) + rng.normal(0, 0.3, tt.shape)
+
+    frames: list[dict] = []
+
+    def batt(i):
+        b = bytearray(8)
+        v = int(round(pack_v[i] * 10)) & 0xFFFF
+        c = int(round(pack_i[i] * 10)) & 0xFFFF
+        s = int(round(soc[i] * 10)) & 0xFFFF
+        b[0], b[1] = (v >> 8) & 0xFF, v & 0xFF
+        b[2], b[3] = (c >> 8) & 0xFF, c & 0xFF
+        b[4], b[5] = (s >> 8) & 0xFF, s & 0xFF
+        return bytes(b)
+
+    def charge(i):
+        b = bytearray(8)
+        b[0] = int(state[i]) & 0xFF  # charge state enum
+        b[1] = 0x00  # mode: 0 = AC
+        b[2] = 0x03  # 3 phases (constant this session)
+        vv = int(round(ac_v[i] * 10)) & 0xFFFF
+        ii = int(round(ac_i[i] * 10)) & 0xFFFF
+        b[3], b[4] = (vv >> 8) & 0xFF, vv & 0xFF
+        b[5], b[6] = (ii >> 8) & 0xFF, ii & 0xFF
+        b[7] = 0x01 if charging[i] else 0x00  # charging-active flag (bit 0)
+        return bytes(b)
+
+    for k in range(int(duration_s * 10)):  # 10 Hz
+        i = min(int(k / 10 / 0.01), len(tt) - 1)
+        mono = k / 10.0
+        frames.append(_frame(mono, t0, BATT_ID, batt(i)))
+        frames.append(_frame(mono, t0, CHARGE_ID, charge(i)))
+    frames.sort(key=lambda f: f["t_mono"])
+    with (out / "can" / "frames.jsonl").open("w", encoding="utf-8") as fh:
+        for f in frames:
+            fh.write(json.dumps(f) + "\n")
+
+    # OBD SoC (rising) on the edge clock
+    obd_samples = []
+    for k in range(int(duration_s * 2)):
+        i = min(int(k / 2 / 0.01), len(tt) - 1)
+        obd_samples.append(_obd(t0 + k / 2.0, 0x5B, "hybrid_battery_remaining",
+                                round(float(soc[i]), 1), "%"))
+    discovery = {"schema_version": SCHEMA,
+                 "obd": {"supported_pids": ["0x5B"], "samples": obd_samples}}
+    (out / "can" / "discovery.json").write_text(json.dumps(discovery, indent=2))
+
+    # dashboard/EVSE OCR + charge telltale (companion clock)
+    with (out / "labels" / "dashboard_ocr.jsonl").open("w", encoding="utf-8") as fh:
+        for k in range(int(duration_s * 2)):
+            i = min(int(k / 2 / 0.01), len(tt) - 1)
+            t = t0 + k / 2.0
+            power_kw = round(3 * float(ac_v[i]) * float(ac_i[i]) / 1000, 2)
+            for field, val in (("charge_state", float(state[i])),
+                               ("ac_voltage", round(float(ac_v[i]), 1)),
+                               ("ac_current", round(float(ac_i[i]), 1)),
+                               ("charge_power", power_kw)):
+                fh.write(json.dumps({"t_utc": round(t, 4), "field": field, "value": val}) + "\n")
+    with (out / "labels" / "telltales.jsonl").open("w", encoding="utf-8") as fh:
+        for k in range(int(duration_s * 5)):
+            i = min(int(k / 5 / 0.01), len(tt) - 1)
+            fh.write(json.dumps({"t_utc": round(t0 + k / 5.0, 4),
+                                 "name": "charging", "state": int(charging[i])}) + "\n")
+
+    manifest = {
+        "schema_version": SCHEMA, "session_id": "synthetic-ev-charging",
+        "created_utc": t0,
+        "vehicle": {"make": "Synthetic", "model": "EV", "year": 2023},
+        "devices": [
+            {"role": "edge", "kind": "autopi", "id": "sim-edge",
+             "clock": {"source": "ntp", "utc_offset_est_s": 0.0, "err_est_s": 0.5}},
+            {"role": "companion", "kind": "ios", "id": "sim-phone",
+             "clock": {"source": "gps", "utc_offset_est_s": 0.0, "err_est_s": 0.05}},
+        ],
+        "streams": [
+            {"path": "can/frames.jsonl", "kind": "can_frames", "rows": len(frames)},
+            {"path": "can/discovery.json", "kind": "discovery"},
+        ],
+    }
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    (out / "ground_truth.json").write_text(json.dumps({
+        "note": "charging session; test-only",
+        "charge_state": {"arb_id": hex(CHARGE_ID), "byte": 0},
+        "charge_mode": {"arb_id": hex(CHARGE_ID), "byte": 1, "note": "0=AC"},
+        "ac_phase_count": {"arb_id": hex(CHARGE_ID), "byte": 2},
+        "ac_voltage": {"arb_id": hex(CHARGE_ID), "bytes": [3, 4], "scale": 0.1},
+        "ac_current": {"arb_id": hex(CHARGE_ID), "bytes": [5, 6], "scale": 0.1},
+        "charging_active": {"arb_id": hex(CHARGE_ID), "byte": 7, "bit": 0},
+        "hv_battery_soc": {"arb_id": hex(BATT_ID), "bytes": [4, 5], "scale": 0.1},
+    }, indent=2))
+    return out
+
+
 def generate(
     out_dir: str | Path,
     *,

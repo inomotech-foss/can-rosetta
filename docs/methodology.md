@@ -172,6 +172,32 @@ EVs put a distinctive signal family on the bus — HV **battery** voltage/curren
 - Edge discovery reads PID `0x5B` in the fast scan; deeper EV battery data is
   manufacturer-specific UDS (`0x22`), reached by the brute-force DID sweep.
 
+### Charging
+
+Charging is a separate regime ([`charging.py`](../server/src/canrosetta/charging.py)):
+the car is parked and plugged in, so GPS/IMU are flat. Charging signals —
+connector/charge **state** (idle → connected → locked → charging → complete),
+AC-vs-DC **mode**, **AC voltage/current/phase-count**, **power**, and the
+charge-active flag — are grounded instead by:
+
+- the car's charge screen / a charge telltale (via perception) as the state and
+  active-flag references;
+- the **EVSE/charger display** OCR'd for AC voltage/current/power;
+- **rising SoC** during the charge;
+- **physics**: AC power = phases·V·I·pf equals DC pack power V·I (minus losses).
+
+An honest caveat this project surfaces: in a **single** charging session every
+power-proportional signal (AC current, DC current, power, the charge-active flag)
+switches on together and is therefore **collinear** — the identifier resolves the
+charging-signal *group* but can't separate AC-current from DC-current from that
+one session alone. What *is* uniquely identifiable is the multi-level charge
+**state** (distinctive shape) and the rising **SoC**. Separating the collinear
+group needs either multiple sessions with different power levels, or the AC/DC
+power identity plus the phase count and nominal voltage — which is exactly why
+we capture phase count and AC voltage even though they're near-constant within a
+session. `classify_mode` and `infer_phase_count` implement the AC/DC and
+phase-count discrimination.
+
 Where we go beyond them: ByCAN and peers (CAN-D, READ) decode from CAN + the
 standard OBD-II PID set alone. We ground the bus in a *much richer* reference
 corpus — phone and **onboard (edge-clock) IMU/GNSS**, plus OCR'd dashboard video
