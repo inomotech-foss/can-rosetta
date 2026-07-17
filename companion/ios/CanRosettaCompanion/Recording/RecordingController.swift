@@ -40,6 +40,12 @@ final class RecordingController: ObservableObject {
     @Published private(set) var photoCount = 0
     /// Estimated live IMU sample rate (Hz).
     @Published private(set) var imuRateHz: Double = 0
+
+    /// Latest, lightly-smoothed user acceleration in g (gravity removed), sampled
+    /// from the IMU at ~30 Hz for the UI. x = lateral (device right +),
+    /// y = longitudinal (device up +). Drives the recording screen's g-ball.
+    @Published private(set) var accelGX: Double = 0
+    @Published private(set) var accelGY: Double = 0
     /// Horizontal accuracy of the latest GPS fix (m), or nil if no fix yet.
     @Published private(set) var gpsHorizontalAccuracy: Double?
     @Published private(set) var locationAuthorization: CLAuthorizationStatus = .notDetermined
@@ -152,7 +158,17 @@ final class RecordingController: ObservableObject {
 
             // Motion
             let motion = MotionSource(clock: clock, hz: motionHz)
-            motion.onRecord = { motionWriter.append($0) }
+            // Persist every sample; forward a throttled copy to the UI g-ball.
+            var lastBallUI = 0.0
+            motion.onRecord = { [weak self] rec in
+                motionWriter.append(rec)
+                let now = CFAbsoluteTimeGetCurrent()
+                if now - lastBallUI >= 1.0 / 30.0, rec.acc.count >= 2 {
+                    lastBallUI = now
+                    let ax = rec.acc[0], ay = rec.acc[1]
+                    Task { @MainActor in self?.updateBall(ax, ay) }
+                }
+            }
             self.motionSource = motion
             motion.start()
 
@@ -223,6 +239,8 @@ final class RecordingController: ObservableObject {
         guard isRecording else { return }
         isRecording = false
         stopUITimer()
+        accelGX = 0
+        accelGY = 0
 
         motionSource?.stop()
         locationSource?.stop()
@@ -466,6 +484,13 @@ final class RecordingController: ObservableObject {
     }
 
     /// Rolling standard deviation of accelerometer magnitude over ~2 s.
+    /// Low-pass the incoming acceleration so the g-ball glides rather than jitters.
+    private func updateBall(_ x: Double, _ y: Double) {
+        let a = 0.35
+        accelGX = accelGX * (1 - a) + x * a
+        accelGY = accelGY * (1 - a) + y * a
+    }
+
     private func pushVibrationSample(_ mag: Double) {
         accelMagnitudes.append(mag)
         if accelMagnitudes.count > 40 {

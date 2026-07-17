@@ -16,7 +16,7 @@ struct RecordingView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     topBar
-                    HalEye().padding(.top, 6)
+                    HalEye(ax: controller.accelGX, ay: controller.accelGY).padding(.top, 6)
                     Text(Fmt.hms(controller.elapsed))
                         .font(.system(size: 46, weight: .semibold, design: .monospaced))
                         .foregroundStyle(Theme.text)
@@ -126,10 +126,31 @@ struct RecordingView: View {
     }
 }
 
-/// The pulsing HAL-9000 eye: a radial red core with an upper-left white
-/// highlight, breathing on a ~2.4 s red glow.
+/// The pulsing HAL-9000 eye. The white highlight is a live **g-ball**: it rides
+/// the IMU's user acceleration — centred at rest, sliding toward the direction
+/// of acceleration (right under lateral g, up under forward g), clamped to the
+/// rim. The eye still breathes on a ~2.4 s red glow.
 struct HalEye: View {
+    /// User acceleration in g: x = lateral (right +), y = longitudinal (up +).
+    var ax: Double = 0
+    var ay: Double = 0
+
     @State private var pulse = false
+
+    // ~60 pt per g, clamped so the highlight stays inside the eye.
+    private var ballOffset: CGSize {
+        let scale = 60.0
+        let maxR = 42.0
+        var dx = ax * scale
+        var dy = -ay * scale // device-up accel moves the ball up (screen y is down)
+        let mag = (dx * dx + dy * dy).squareRoot()
+        if mag > maxR, mag > 0 {
+            dx *= maxR / mag
+            dy *= maxR / mag
+        }
+        return CGSize(width: dx, height: dy)
+    }
+
     var body: some View {
         ZStack {
             Circle()
@@ -141,16 +162,18 @@ struct HalEye: View {
                     gradient: Gradient(colors: [Color.white.opacity(0.95), Color.white.opacity(0.0)]),
                     center: .center, startRadius: 0, endRadius: 16))
                 .frame(width: 32, height: 32)
-                .offset(x: -26, y: -26)
+                .offset(ballOffset)
+                .animation(.easeOut(duration: 0.12), value: ballOffset)
             Circle().strokeBorder(Color.black.opacity(0.45), lineWidth: 2)
         }
         .frame(width: 132, height: 132)
+        .clipShape(Circle())
         .scaleEffect(pulse ? 1.06 : 1.0)
         .shadow(color: Theme.red.opacity(pulse ? 0.9 : 0.35), radius: pulse ? 36 : 14)
         .onAppear {
             withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) { pulse = true }
         }
-        .accessibilityLabel("Recording indicator")
+        .accessibilityLabel("Recording indicator; the highlight tracks acceleration")
     }
 }
 
