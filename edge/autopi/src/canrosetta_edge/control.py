@@ -102,6 +102,44 @@ def create_app(engine: Engine, token: str = ""):
             return web.json_response({"error": "no discovery yet"}, status=404)
         return web.json_response(d)
 
+    @routes.get("/api/version")
+    async def version_ep(request):
+        from . import updater
+        repo = engine.config.update_repo
+        check = request.query.get("check") not in (None, "0", "false")
+        # a network check for the latest release can be slow; do it off-loop, opt-in
+        if check:
+            st = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: updater.version_status(repo))
+        else:
+            st = updater.UpdateStatus(updater.current_version(), None, False, repo)
+        return web.json_response({
+            "current": st.current, "latest": st.latest,
+            "update_available": st.update_available, "repo": st.repo,
+            "sw_version": SW_VERSION,
+        })
+
+    @routes.post("/api/update")
+    async def update_ep(request):
+        from . import updater
+        if engine.state in ("discovering", "logging"):
+            return web.json_response({"error": "busy; stop recording before updating"},
+                                     status=409)
+        body = await _json(request)
+        loop = asyncio.get_event_loop()
+        try:
+            result = await loop.run_in_executor(None, lambda: updater.update(
+                target_tag=body.get("target"),
+                repo=engine.config.update_repo,
+                allow_remote=engine.config.allow_remote_update,
+            ))
+        except updater.UpdateError as e:
+            return web.json_response({"error": str(e)}, status=400)
+        # reply first, then re-exec into the freshly-installed code
+        result["restarting"] = True
+        loop.call_later(1.0, updater.restart)
+        return web.json_response(result)
+
     @routes.get("/api/ws")
     async def ws_handler(request):
         ws = web.WebSocketResponse(heartbeat=20.0)

@@ -51,6 +51,10 @@ class EdgeConfig:
     # --- power management ---
     prevent_sleep: bool = True            # hold the AutoPi awake while a job runs
 
+    # --- over-the-air update (phone-driven provisioning) ---
+    update_repo: str = "inomotech-foss/can-rosetta"  # official source; non-official is refused
+    allow_remote_update: bool = True      # allow POST /api/update to self-update + restart
+
     @classmethod
     def from_yaml(cls, path: str) -> "EdgeConfig":
         import yaml  # dependency: pyyaml
