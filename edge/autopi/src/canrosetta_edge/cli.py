@@ -99,11 +99,21 @@ def cmd_simulate(args) -> int:
 
 def cmd_serve(args) -> int:
     from .control import serve  # lazy: needs aiohttp
+    from .pairing import format_pairing
 
     config = _load_config(args)
+    # headless AutoPi has no screen — print the pairing QR + host/token to the console
+    print(format_pairing(config))
     eng = Engine(config, device_id=getattr(args, "device_id", None))
     serve(eng, host=config.control_host, port=config.control_port,
           token=config.control_token)
+    return 0
+
+
+def cmd_pairing(args) -> int:
+    from .pairing import format_pairing
+
+    print(format_pairing(_load_config(args)))
     return 0
 
 
@@ -148,6 +158,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--control-port", dest="control_port", type=int)
     sp.add_argument("--control-token", dest="control_token")
     sp.set_defaults(func=cmd_serve)
+
+    sp = sub.add_parser("pairing",
+                        help="print the pairing host/token + a terminal QR (headless setup)")
+    common(sp)
+    sp.add_argument("--control-port", dest="control_port", type=int)
+    sp.add_argument("--control-token", dest="control_token")
+    sp.set_defaults(func=cmd_pairing)
     return p
 
 

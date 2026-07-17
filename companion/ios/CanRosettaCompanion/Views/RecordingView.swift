@@ -8,6 +8,7 @@ struct RecordingView: View {
     @EnvironmentObject private var connection: EdgeConnection
     @EnvironmentObject private var flow: DriveFlowModel
 
+    private var standalone: Bool { flow.mode == .standalone }
     private var edgeUp: Bool { connection.connectionState == .connected }
 
     var body: some View {
@@ -22,7 +23,7 @@ struct RecordingView: View {
                         .monospacedDigit()
                     Text(caption)
                         .font(.subheadline)
-                        .foregroundStyle(edgeUp ? Theme.textSecondary : Theme.amber)
+                        .foregroundStyle(captionColor)
                         .multilineTextAlignment(.center)
                     statsCard
                 }
@@ -49,16 +50,32 @@ struct RecordingView: View {
             VStack(alignment: .trailing, spacing: 3) {
                 Text(String(controller.sessionId.prefix(13)) + "…")
                     .font(.mono(.caption)).foregroundStyle(Theme.textSecondary)
-                Text(edgeUp ? "edge link ✓" : "phone-only")
+                Text(linkLabel)
                     .font(.system(.caption2, weight: .semibold))
-                    .foregroundStyle(edgeUp ? Theme.green : Theme.amber)
+                    .foregroundStyle(linkColor)
             }
         }
     }
 
+    private var linkLabel: String {
+        if standalone { return "phone only" }
+        return edgeUp ? "edge link ✓" : "phone-only"
+    }
+
+    private var linkColor: Color {
+        if standalone { return Theme.textMuted }
+        return edgeUp ? Theme.green : Theme.amber
+    }
+
     private var caption: String {
-        edgeUp ? "all systems fully operational"
-               : "edge link down — recording locally"
+        if standalone { return "recording locally — phone only" }
+        return edgeUp ? "all systems fully operational"
+                      : "edge link down — recording locally"
+    }
+
+    private var captionColor: Color {
+        if standalone { return Theme.textSecondary }
+        return edgeUp ? Theme.textSecondary : Theme.amber
     }
 
     // MARK: Stats
@@ -73,8 +90,10 @@ struct RecordingView: View {
                     RowSeparator(leadingInset: 12)
                     row("Dashboard video", videoValue)
                 }
-                RowSeparator(leadingInset: 12)
-                row("AutoPi · can0", canValue)
+                if !standalone {
+                    RowSeparator(leadingInset: 12)
+                    row("AutoPi · can0", canValue)
+                }
             }
         }
     }

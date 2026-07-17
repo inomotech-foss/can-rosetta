@@ -102,7 +102,14 @@ canrosetta-edge simulate --output-dir /tmp/demo-session
 
 # Run the control server so the phone can steer this device (needs the [control] extra)
 canrosetta-edge serve --transport socketcan --control-port 8765 --control-token "$TOKEN"
+
+# Headless setup: print the pairing host/token + a scannable terminal QR
+canrosetta-edge pairing --control-token "$TOKEN"
 ```
+
+Since the AutoPi is headless, `serve` prints the pairing block (host, token, and
+an ASCII QR you can scan straight off the SSH terminal) on startup; `pairing`
+prints it on demand. In the app, scan it or enter host + token manually.
 
 All of `log`/`run`/`simulate`/`serve` also log the AutoPi's onboard sensors and
 hold the wake lock. The control server (`serve`) is documented in

@@ -80,23 +80,27 @@ struct PreflightView: View {
     private var checks: [Check] {
         var out: [Check] = []
 
-        // Paired with AutoPi
-        let paired = connection.connectionState == .connected
-        out.append(Check(
-            title: "Paired with AutoPi",
-            detail: paired ? "edge online · \(hostOnly)" : "not paired — phone-only recording",
-            status: paired ? .ok : .warn))
+        // Paired with AutoPi — only relevant when paired (dropped in standalone).
+        if flow.mode == .paired {
+            let paired = connection.connectionState == .connected
+            out.append(Check(
+                title: "Paired with AutoPi",
+                detail: paired ? "edge online · \(hostOnly)" : "not paired — phone-only recording",
+                status: paired ? .ok : .warn))
+        }
 
         // GPS fix
         out.append(gpsCheck)
 
-        // Clocks pinned
-        if let offset = connection.timeOffset {
-            out.append(Check(title: "Clocks pinned",
-                             detail: String(format: "%+.0f ms · Cristian", offset * 1000),
-                             status: .ok))
-        } else {
-            out.append(Check(title: "Clocks pinned", detail: "no sync yet · Cristian", status: .warn))
+        // Clocks pinned — an edge-clock concept; dropped in standalone.
+        if flow.mode == .paired {
+            if let offset = connection.timeOffset {
+                out.append(Check(title: "Clocks pinned",
+                                 detail: String(format: "%+.0f ms · Cristian", offset * 1000),
+                                 status: .ok))
+            } else {
+                out.append(Check(title: "Clocks pinned", detail: "no sync yet · Cristian", status: .warn))
+            }
         }
 
         // Motion permission

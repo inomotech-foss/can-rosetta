@@ -119,26 +119,38 @@ in `RecordingController` and `EdgeConnection`; the flow only navigates and calls
 through. Shared styling (b-on "Midnight" palette, cards, buttons, rows) lives in
 `Views/Theme.swift` + `Views/FlowComponents.swift`.
 
+The flow runs in one of two **modes** (`DriveFlowModel.PairingMode`): `.paired`
+(coordinated with an AutoPi) or `.standalone` (phone-only, no edge). `.standalone`
+never configures or starts `EdgeConnection`.
+
 1. **Pair AutoPi** (`PairView`) — a live QR viewfinder (`QRScannerView`,
    `AVCaptureMetadataOutput`/`.qr`) reads a JSON payload
    `{"host":…,"token":…,"session_id":…?}`, configures `EdgeConnection`, then runs
-   the existing Cristian time-sync (shows `offset ±NN ms · rtt N ms`). A manual
-   host/token fallback reuses the same connect+sync logic; "Advanced control"
-   opens the full `RemoteControlView`. Wi-Fi SSID is shown as `—` (iOS gates SSID
-   behind entitlements we don't hold). → *Confirm — arm both recorders*.
-2. **Pre-flight** (`PreflightView`) — a live checklist: paired (edge health),
-   GPS fix (`CLLocation` horizontal accuracy), clocks pinned (Cristian offset),
-   motion available, storage (real `volumeAvailableCapacityForImportantUsage`),
-   camera (only if *Film dashboard*), and phone-mounted (a standby accelerometer
-   monitor computes the RMS of acceleration magnitude → steady/`vibration high`).
-   *Start recording* is blocked while a blocking check fails and enables itself
-   once the cradle stops rattling. → coordinated start when paired, else an
-   honest phone-only recording.
+   the existing Cristian time-sync (shows `offset ±NN ms · rtt N ms`). Because a
+   **headless AutoPi has no screen to show a QR**, manual **Host + Control token**
+   entry is a **first-class option** on this screen (not hidden): a *Pair* button
+   runs the same health-check + time-sync and shows the same handshake-complete
+   result. The host defaults to the AP guess `http://192.168.4.1:8765` so a user on
+   the AutoPi Wi-Fi just adds the token (the installer prints both, plus a QR you
+   can scan from an SSH terminal). "Advanced control" opens the full
+   `RemoteControlView`. Wi-Fi SSID is shown as `—` (iOS gates SSID behind
+   entitlements we don't hold). → *Confirm — arm both recorders* (paired), **or**
+   *Record without AutoPi* to enter the flow in `.standalone`.
+2. **Pre-flight** (`PreflightView`) — a live checklist: paired (edge health) and
+   clocks pinned (Cristian offset) — **both dropped in `.standalone`** — plus GPS
+   fix (`CLLocation` horizontal accuracy), motion available, storage (real
+   `volumeAvailableCapacityForImportantUsage`), camera (only if *Film dashboard*),
+   and phone-mounted (a standby accelerometer monitor computes the RMS of
+   acceleration magnitude → steady/`vibration high`). *Start recording* is blocked
+   while a blocking check fails and enables itself once the cradle stops rattling.
+   → coordinated start when paired (phone-only fallback if the edge is
+   unreachable), or a local `RecordingController.start()` in `.standalone`.
 3. **Recording** (`RecordingView`) — a blinking REC pill, the session id, the
-   edge-link state, the pulsing **HAL-9000 eye**, a big mono `HH:MM:SS` timer,
-   and a live stats card (IMU Hz/samples, GPS accuracy/fixes, video fps/frames
-   when filming, AutoPi frames). CAN load is shown `—` (not surfaced by the edge
-   status). → *Stop recording*.
+   link state, the pulsing **HAL-9000 eye**, a big mono `HH:MM:SS` timer, and a
+   live stats card (IMU Hz/samples, GPS accuracy/fixes, video fps/frames when
+   filming, AutoPi frames). In `.standalone` the *AutoPi · can0* row is hidden and
+   the link label reads a muted *phone only*. CAN load is shown `—` (not surfaced
+   by the edge status). → *Stop recording* (local-only in `.standalone`).
 4. **Sync marker** (`SyncMarkerView`) — "flash the brakes 3×". Pinning writes a
    `sync_marker` (`kind:"brake_pulse"`, `count:3`, `t_utc` now) into the session;
    the manifest/archive are re-written after stop (see `SessionManifest`'s
