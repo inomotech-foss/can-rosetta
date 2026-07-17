@@ -123,6 +123,9 @@ class Session:
     edge_location: dict[str, np.ndarray] = field(default_factory=dict)
     discovery: dict = field(default_factory=dict)
     labels: dict = field(default_factory=dict)
+    # dashboard-video-derived label streams (see canrosetta.perception):
+    #   {"dashboard": [rows], "telltales": [rows], "gear": [rows]}
+    video_labels: dict[str, list] = field(default_factory=dict)
 
     @property
     def session_id(self) -> str:
@@ -286,6 +289,13 @@ def load_session(root: str | Path) -> Session:
     if ann.exists():
         labels = json.loads(ann.read_text(encoding="utf-8"))
 
+    video_labels: dict[str, list] = {}
+    for key, fname in (("dashboard", "dashboard_ocr.jsonl"),
+                       ("telltales", "telltales.jsonl"), ("gear", "gear.jsonl")):
+        p = root / "labels" / fname
+        if p.exists():
+            video_labels[key] = _read_jsonl(p)
+
     return Session(
         root=root,
         manifest=manifest,
@@ -296,4 +306,5 @@ def load_session(root: str | Path) -> Session:
         edge_location=edge_location,
         discovery=discovery,
         labels=labels,
+        video_labels=video_labels,
     )

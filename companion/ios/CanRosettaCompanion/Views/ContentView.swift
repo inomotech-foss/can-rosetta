@@ -76,6 +76,9 @@ struct ContentView: View {
             if controller.filmDashboard {
                 StatusRow(label: "Video frames", value: "\(controller.videoFrameCount)")
             }
+            if controller.capturePhotos {
+                StatusRow(label: "Stills", value: "\(controller.photoCount)")
+            }
         }
     }
 
@@ -83,8 +86,10 @@ struct ContentView: View {
         Section {
             Toggle("Film dashboard", isOn: $controller.filmDashboard)
                 .disabled(controller.isRecording)
+            Toggle("Capture stills", isOn: $controller.capturePhotos)
+                .disabled(controller.isRecording)
         } footer: {
-            Text("Records the rear camera to video.mp4 with a per-frame timestamp index for later dashboard OCR. Uses more battery and storage.")
+            Text("Film dashboard records the rear camera to video.mp4 (temporally dense, good for telltales/needles). Capture stills saves periodic full-resolution photos to phone/photos/ (sharper, good for OCR of small digits). Both share one camera; using them together keeps the video recording. Uses more battery and storage.")
         }
     }
 

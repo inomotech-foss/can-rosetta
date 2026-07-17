@@ -15,15 +15,19 @@ recorded sessions; the learned foundation model is scaffolded, not yet trained.
 
 ## Next
 
+- [x] **Dashboard perception** (`server/canrosetta/perception`): turn filmed
+      gauges/lamps into references — digit OCR, telltale on/off, needle angle,
+      gear — with **hybrid capture** (video for temporal density + periodic
+      high-res stills for OCR accuracy).
+- [x] **Event references**: telltale/gear detection identifies discrete/flag
+      signals, not just continuous ones.
 - [ ] **Cross-component integration test**: drive the edge simulator and a
       synthetic phone part into one session and run the server on it.
-- [ ] **Dashboard OCR** to turn filmed gauges into labelled references (fuel
-      level, gear, warning lamps the OBD layer never exposes).
-- [ ] **Event references**: brake/turn-signal/gear detection from IMU + video to
-      identify discrete/flag signals, not just continuous ones.
 - [ ] **Multiplexed signal handling** in extraction (multiplexed CAN frames).
 - [ ] **Phone→vehicle frame estimation** so IMU axes become true longitudinal /
       lateral acceleration references.
+- [ ] **EV-specific signals** (SoC, pack voltage/current, cell temps, regen,
+      motor torque) and command-vs-status message classification.
 
 ## Foundation model
 

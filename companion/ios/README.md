@@ -18,6 +18,8 @@ time. Alignment and decoding are the server's job.
 | `phone/location.jsonl`      | `CLLocationManager` (best accy) | 1–10 Hz   | [`location.record`](../../schemas/location.record.schema.json) |
 | `phone/video.mp4`           | `AVCaptureSession` rear camera  | ~30 fps   | (optional) |
 | `phone/video_index.jsonl`   | capture PTS → `t_utc`           | per frame | (optional) |
+| `phone/photos/NNNNNN.jpg`   | `AVCapturePhotoOutput` full-res | ~0.5 s    | (optional) |
+| `phone/photos_index.jsonl`  | photo capture time → `t_utc`    | per still | [`photo_index.record`](../../schemas/photo_index.record.schema.json) |
 | `manifest.json`             | assembled at stop               | —         | [`manifest`](../../schemas/manifest.schema.json) |
 
 ### Field mapping (must match the schemas exactly)
@@ -78,6 +80,34 @@ seconds relative to the first written frame and `t_utc` comes from the capture
 sample buffer's presentation timestamp (host-time clock domain) run through the
 same `Clock`. Frames are appended to `AVAssetWriter` in real time; late frames
 are dropped by the capture output rather than stalling the pipeline.
+
+### Hybrid still capture
+
+Video trades spatial resolution for frame rate: great for a turn-signal blink or
+a needle sweep, poor for OCR of small dashboard digits through HEVC/H.264
+compression. So the app *also* captures periodic **full-resolution JPEG stills**
+(`Recording/PhotoCapture.swift`) into `phone/photos/`, indexed by
+`phone/photos_index.jsonl` (`{ t_utc, path, w, h }`, see
+[`photo_index.record`](../../schemas/photo_index.record.schema.json)). The server
+routes numeric/gear OCR to the nearest still (accuracy) and telltales/needles to
+the video (temporal density).
+
+- Enabled by the **Capture stills** toggle (on by default); interval is
+  `photoIntervalSeconds` (default 0.5 s).
+- An `AVCapturePhotoOutput` is attached to the **same** `AVCaptureSession` the
+  video uses, so filming and stills run together off one camera without
+  interrupting the video. With video off, still capture stands up its own
+  `.photo`-preset session.
+- The output is configured for maximum still resolution
+  (`maxPhotoDimensions` = the active format's largest supported size, quality
+  prioritization). Each still's `t_utc` comes from `AVCapturePhoto.timestamp`
+  (the same host-time clock domain as the video PTS) run through the same
+  `Clock`, so stills, video frames and IMU samples share one `t_utc` domain.
+- Setup degrades gracefully: if the session cannot add a photo output (e.g. a
+  device/multicam limit) or the camera is unavailable, stills are disabled with a
+  log and the rest of the recording is unaffected. Stills are **not** listed in
+  `manifest.json` (the manifest `streams[].kind` enum has no photo kind); they are
+  self-describing via `photos_index.jsonl`, matching the data-format spec.
 
 ## Remote control of the AutoPi
 
@@ -165,7 +195,7 @@ Declared in `Info.plist`:
 
 - `NSMotionUsageDescription` — IMU
 - `NSLocationWhenInUseUsageDescription` / `NSLocationAlwaysAndWhenInUseUsageDescription` — GPS (Always is needed for background recording in a cradle)
-- `NSCameraUsageDescription` — dashboard video
+- `NSCameraUsageDescription` — dashboard video and/or full-resolution stills
 - `UIBackgroundModes: [location]` — keep recording when backgrounded/screen off
 - `UIFileSharingEnabled` / `LSSupportsOpeningDocumentsInPlace` — sessions visible in the Files app
 
@@ -186,11 +216,12 @@ folder and are reachable from the Files app.
 
 ## Privacy
 
-**GPS traces and dashboard video are personal data.** A location trace reveals
-where you live and drive; dashboard video may capture surroundings, plates, or
-occupants. Recordings never leave the device automatically — you choose when and
-where to share each session archive. Video is off by default. No raw VIN is ever
-stored (the format uses a hashed `vin_hash`, populated server-side).
+**GPS traces and dashboard imagery are personal data.** A location trace reveals
+where you live and drive; dashboard video and stills may capture surroundings,
+plates, or occupants. Recordings never leave the device automatically — you
+choose when and where to share each session archive. Video is off by default;
+still capture is on by default (and can be turned off). No raw VIN is ever stored
+(the format uses a hashed `vin_hash`, populated server-side).
 
 ## TODOs / caveats for developers
 

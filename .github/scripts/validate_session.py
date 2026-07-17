@@ -51,6 +51,9 @@ def main(session_dir: str) -> int:
         ("phone/location.jsonl", "location.record.schema.json"),
         ("edge/motion.jsonl", "motion.record.schema.json"),
         ("edge/location.jsonl", "location.record.schema.json"),
+        ("labels/telltales.jsonl", "label_telltale.record.schema.json"),
+        ("labels/dashboard_ocr.jsonl", "label_dashboard.record.schema.json"),
+        ("labels/gear.jsonl", "label_gear.record.schema.json"),
     ]
     for rel, schema_name in checks:
         path = root / rel

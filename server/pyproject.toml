@@ -18,6 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 parquet = ["pyarrow>=12"]
 model = ["torch>=2.1"]
+perception = ["opencv-python-headless>=4.8", "pytesseract>=0.3.10", "pillow>=10"]
 api = [
   "fastapi>=0.110",
   "uvicorn[standard]>=0.29",

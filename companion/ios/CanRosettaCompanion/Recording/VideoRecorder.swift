@@ -45,6 +45,15 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 
     private(set) var frameCount = 0
 
+    /// The active capture device (rear wide-angle), set during configuration.
+    /// Exposed so a `PhotoCapture` can read its supported photo dimensions.
+    private(set) var captureDevice: AVCaptureDevice?
+
+    /// The shared capture session and its serial queue, so a `PhotoCapture` can
+    /// attach a still-photo output to the same graph while video keeps recording.
+    var captureSession: AVCaptureSession { session }
+    var captureSessionQueue: DispatchQueue { sessionQueue }
+
     init(clock: Clock, videoURL: URL, indexURL: URL) {
         self.clock = clock
         self.videoURL = videoURL
@@ -112,6 +121,7 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
             throw VideoError.cannotAddInput
         }
         session.addInput(input)
+        captureDevice = device
 
         videoOutput.videoSettings = [
             kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA)

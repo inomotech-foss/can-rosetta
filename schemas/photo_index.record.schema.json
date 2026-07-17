@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/inomotech-foss/can-rosetta/schemas/photo_index.record.schema.json",
+  "title": "One periodic high-res still — a line of phone/photos_index.jsonl",
+  "type": "object",
+  "required": ["t_utc", "path"],
+  "additionalProperties": false,
+  "properties": {
+    "t_utc": { "type": "number" },
+    "path": { "type": "string", "description": "session-relative path, e.g. phone/photos/000123.jpg" },
+    "w": { "type": "integer" },
+    "h": { "type": "integer" }
+  }
+}
