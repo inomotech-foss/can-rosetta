@@ -36,7 +36,11 @@ class TimeMathTest {
         val a = TimeMath.utcFromElapsedNanos(100.0, ns2) - TimeMath.utcFromElapsedNanos(100.0, ns1)
         val b = TimeMath.utcFromElapsedNanos(999999.0, ns2) - TimeMath.utcFromElapsedNanos(999999.0, ns1)
         assertEquals(0.050, a, 1e-9)
-        assertEquals(a, b, 1e-12)
+        // spacing is preserved to well within a microsecond regardless of the
+        // anchor; it is NOT bit-identical, because double precision at
+        // epoch-scale magnitudes has ~sub-µs ULP (harmless — the server aligns
+        // to milliseconds, and this is why we anchor once rather than per-sample).
+        assertEquals(a, b, 1e-6)
     }
 
     @Test
