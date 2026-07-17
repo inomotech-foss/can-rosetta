@@ -65,6 +65,66 @@ def generate_ev(out_dir: str | Path, **kw) -> Path:
 
 
 CHARGE_ID = 0x4B0  # charge module: state, mode, phases, AC voltage/current, active flag
+BRAKE_ID = 0x2B0  # brake command module (for the command-causality demo)
+
+
+def generate_command_demo(out_dir: str | Path, *, duration_s: float = 60.0,
+                          actuation_lag_s: float = 0.4, seed: int = 13) -> Path:
+    """Write a session demonstrating a *command* that leads its *effect*.
+
+    A brake command (0x2B0 byte0 bit0) goes high at each braking event; the
+    resulting deceleration (edge IMU longitudinal accel) follows ``actuation_lag_s``
+    later. Command identification (roles.command_candidates) should flag the brake
+    command as *leading* the deceleration — the passive signature of a command.
+    """
+    rng = np.random.default_rng(seed)
+    out = Path(out_dir)
+    (out / "can").mkdir(parents=True, exist_ok=True)
+    (out / "edge").mkdir(parents=True, exist_ok=True)
+    t0 = 1_752_624_000.0
+
+    tt = np.arange(0, duration_s, 0.01)
+    events = [t for t in (12.0, 30.0, 45.0) if t + 3 < duration_s]
+    cmd = np.zeros_like(tt)
+    accel = rng.normal(0, 0.01, tt.shape)  # g, longitudinal
+    for te in events:
+        cmd[(tt >= te) & (tt < te + 2.0)] = 1.0
+        accel[(tt >= te + actuation_lag_s) & (tt < te + 2.0 + actuation_lag_s)] = -0.25
+
+    frames: list[dict] = []
+    for k in range(int(duration_s * 50)):  # 50 Hz, periodic
+        i = min(int(k / 50 / 0.01), len(tt) - 1)
+        mono = k / 50.0
+        b = bytearray(8)
+        b[0] = 0x80 if cmd[i] else 0x00  # brake command in byte0 bit0 (MSB)
+        b[2] = 0x55  # constant padding
+        frames.append(_frame(mono, t0, BRAKE_ID, bytes(b)))
+    frames.sort(key=lambda f: f["t_mono"])
+    with (out / "can" / "frames.jsonl").open("w", encoding="utf-8") as fh:
+        for f in frames:
+            fh.write(json.dumps(f) + "\n")
+
+    with (out / "edge" / "motion.jsonl").open("w", encoding="utf-8") as fh:
+        for k in range(int(duration_s * 100)):  # 100 Hz IMU (edge clock)
+            i = min(int(k / 100 / 0.01), len(tt) - 1)
+            fh.write(json.dumps({
+                "t_utc": round(t0 + k / 100.0, 4),
+                "acc": [round(float(accel[i]), 5), 0.0, 0.0],
+                "rot": [0.0, 0.0, 0.0],
+            }) + "\n")
+
+    manifest = {
+        "schema_version": SCHEMA, "session_id": "synthetic-command-demo",
+        "created_utc": t0,
+        "devices": [{"role": "edge", "kind": "autopi", "id": "sim-edge",
+                     "clock": {"source": "ntp", "utc_offset_est_s": 0.0, "err_est_s": 0.5}}],
+        "streams": [
+            {"path": "can/frames.jsonl", "kind": "can_frames", "rows": len(frames)},
+            {"path": "edge/motion.jsonl", "kind": "motion"},
+        ],
+    }
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    return out
 
 
 def generate_ev_charging(out_dir: str | Path, *, duration_s: float = 120.0,
