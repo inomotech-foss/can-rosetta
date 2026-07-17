@@ -21,6 +21,12 @@
       "package-name": "ios",
       "component": "ios",
       "changelog-path": "CHANGELOG.md"
+    },
+    "companion/android": {
+      "release-type": "simple",
+      "package-name": "android",
+      "component": "android",
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }

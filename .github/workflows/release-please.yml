@@ -22,6 +22,8 @@ jobs:
       server_released: ${{ steps.rp.outputs['server--release_created'] }}
       server_version: ${{ steps.rp.outputs['server--version'] }}
       server_tag: ${{ steps.rp.outputs['server--tag_name'] }}
+      android_released: ${{ steps.rp.outputs['companion/android--release_created'] }}
+      android_tag: ${{ steps.rp.outputs['companion/android--tag_name'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: rp
@@ -56,3 +58,29 @@ jobs:
             ghcr.io/inomotech-foss/can-rosetta-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # When an Android release is cut, build the release APK/AAB and attach them.
+  android-release:
+    needs: release-please
+    if: needs.release-please.outputs.android_released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: companion/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew --no-daemon assembleRelease bundleRelease
+      - name: Attach APK/AAB to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ needs.release-please.outputs.android_tag }}" \
+            app/build/outputs/apk/release/*.apk \
+            app/build/outputs/bundle/release/*.aab --clobber
