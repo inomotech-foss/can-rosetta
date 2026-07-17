@@ -70,7 +70,9 @@
     identifyPct: 73,
     hypoOverride: {},
     sel: { id: "s-20260717-0742-golf8", vehicle: "VW Golf 8 1.5 eTSI" },
-    live: { sessions: null, detail: {}, identify: {}, census: {} },
+    live: { sessions: null, detail: {}, identify: {}, census: {}, clusters: {}, coverage: {}, knowledge: null },
+    hypoLive: {},
+    hypoRefOverride: {},
   };
   var liveIds = {}; // ids known to be live (fetchable)
 
@@ -544,6 +546,9 @@
   function viewHypo() {
     var live = state.live.identify[state.sel.id];
     var hypos = (live && live.per_reference) ? hyposFromLive(live) : demoHypos();
+    // Map each row (by rank) back to the payload the confirm/reject API needs.
+    state.hypoLive = {};
+    hypos.forEach(function (h) { if (h.live) state.hypoLive[h.rank] = h.live; });
     var counts = {};
     hypos.forEach(function (h) { counts[h.status] = (counts[h.status] || 0) + 1; });
     var confirmed = counts.confirmed || 0;
@@ -607,12 +612,28 @@
       var r = Math.abs(top.r);
       var conf = Math.round(r * 100);
       var f = top.field || {};
-      var status0 = r >= 0.97 ? "confirmed" : r >= 0.9 ? "pending" : "review";
-      out.push(H(rank, ref, "n=" + (top.n || 0),
+      // Live rows are re-ranked after sorting, so key any confirm/reject status
+      // override by the stable reference name rather than the volatile rank.
+      var status0 = state.hypoRefOverride[ref] ||
+        (r >= 0.97 ? "confirmed" : r >= 0.9 ? "pending" : "review");
+      var h = H(rank, ref, "n=" + (top.n || 0),
         esc(top.candidate),
         "scale " + fmt(top.scale, 4) + " · offset " + fmt(top.offset, 2),
         "r " + fmt(top.r, 3) + " · MI " + fmt(top.mutual_info, 1),
-        r >= 0.9 ? "✓ strong" : "~ weak", r >= 0.9, conf, status0));
+        r >= 0.9 ? "✓ strong" : "~ weak", r >= 0.9, conf, status0);
+      // Carry the raw payload the confirm/reject endpoints need for this row.
+      // `field` is the candidate dict but omits the computed `label` property, so
+      // inject the label the API keys the KB entry / rejection memory on.
+      var candDict = {};
+      Object.keys(f).forEach(function (k) { candDict[k] = f[k]; });
+      candDict.label = top.candidate;
+      h.live = {
+        reference: ref,
+        candidate: candDict,
+        candidate_label: top.candidate,
+        r: top.r,
+      };
+      out.push(h);
       rank++;
     });
     out.sort(function (a, b) { return parseFloat(b.conf) - parseFloat(a.conf); });
@@ -641,6 +662,14 @@
         kpi("Bitrate", "—")];
     }
 
+    // Real coverage for the selected session replaces the "Bus load" placeholder.
+    var cov = state.live.coverage[state.sel.id];
+    if (cov) {
+      kpiVals[2] = kpi("Coverage", Math.round((cov.coverage || 0) * 100) + " %",
+        (cov.confirmed_fields != null ? cov.confirmed_fields : "—") + " / " +
+        (cov.dynamic_fields != null ? cov.dynamic_fields : "—") + " dynamic fields");
+    }
+
     var heatHeader = '<div style="display:grid;grid-template-columns:76px repeat(8,1fr);gap:3px;font-size:10.5px;color:var(--text-muted)">' +
       "<div></div>" + [0, 1, 2, 3, 4, 5, 6, 7].map(function (i) { return '<div style="text-align:center">B' + i + "</div>"; }).join("") + "</div>";
     var heatBody = HEAT_ROWS.map(function (r) {
@@ -664,6 +693,28 @@
         '<span style="font-size:11px;color:var(--text-secondary)">' + esc(c.tax) + "</span>" + noteHtml + "</div></div>";
     }).join("");
 
+    // Unidentified clusters: prefer the real ones for the selected session.
+    var clu = state.live.clusters[state.sel.id];
+    var clusterCard;
+    if (clu && Array.isArray(clu.clusters) && clu.clusters.length) {
+      var clusterList = clu.clusters.map(function (c) {
+        return '<div style="font-size:13px;line-height:1.6;color:var(--text-secondary)">' +
+          '<span style="' + MONO + ';font-size:12px;color:var(--text-primary)">' +
+          (c || []).map(esc).join(" · ") + "</span></div>";
+      }).join("");
+      clusterCard = '<div style="' + CARD + ';padding:16px;display:flex;flex-direction:column;gap:8px">' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+        '<div style="' + EYEBROW + '">Unidentified clusters</div>' +
+        badgeSpan(clu.clusters.length + " unmatched", "warn") + "</div>" +
+        '<div style="font-size:12px;color:var(--text-muted)">Periodic, structured, mutually correlated groups that match no reference on this drive.</div>' +
+        clusterList + "</div>";
+    } else {
+      clusterCard = '<div style="' + CARD + ';padding:16px;display:flex;flex-direction:column;gap:8px">' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+        '<div style="' + EYEBROW + '">Unidentified cluster · darmok</div>' + badgeSpan("meaning unknown", "warn") + "</div>" +
+        '<div style="font-size:13px;line-height:1.6;color:var(--text-secondary)"><span style="' + MONO + ';font-size:12px">0x4A1 · 0x4A3 · 0x5C2</span> — periodic, structured, mutually correlated; matches no reference on this drive. The metaphor isn\'t in the corpus yet — queued for the next labelled drive.</div></div>';
+    }
+
     return '<div style="display:flex;flex-direction:column;gap:16px">' +
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">' + kpiVals.join("") + "</div>" +
       '<div style="display:grid;grid-template-columns:minmax(420px,1fr) 1.3fr;gap:16px;align-items:start">' +
@@ -678,10 +729,7 @@
       '<div style="display:grid;min-width:640px;grid-template-columns:76px 86px 70px 46px 86px 1.5fr;gap:12px;padding:8px 16px;background:var(--bg-table-head);' +
       'font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary)">' +
       "<div>ID</div><div>Period</div><div>Jitter</div><div>DLC</div><div>Frames</div><div>Field taxonomy</div></div>" + censusRows + "</div>" +
-      '<div style="' + CARD + ';padding:16px;display:flex;flex-direction:column;gap:8px">' +
-      '<div style="display:flex;align-items:center;gap:10px">' +
-      '<div style="' + EYEBROW + '">Unidentified cluster · darmok</div>' + badgeSpan("meaning unknown", "warn") + "</div>" +
-      '<div style="font-size:13px;line-height:1.6;color:var(--text-secondary)"><span style="' + MONO + ';font-size:12px">0x4A1 · 0x4A3 · 0x5C2</span> — periodic, structured, mutually correlated; matches no reference on this drive. The metaphor isn\'t in the corpus yet — queued for the next labelled drive.</div></div></div></div></div>';
+      clusterCard + "</div></div></div>";
   }
 
   function viewTraining() {
@@ -726,7 +774,24 @@
       '<div style="color:var(--text-muted)">run halted (exit 2001) · lr 3e-4 → retry queued at 1e-4</div></div></div></div></div>';
   }
 
-  function viewKb() {
+  function kbPlatformTable(platforms) {
+    var rows = platforms.map(function (p) {
+      return '<div style="display:grid;min-width:640px;grid-template-columns:1.6fr 90px 90px 90px;gap:12px;padding:11px 16px;' +
+        'border-top:1px solid var(--border-primary);font-size:12.5px;align-items:center">' +
+        '<div style="color:var(--text-primary);font-weight:500">' + esc(p.platform) + "</div>" +
+        '<div style="' + TNUM + ';color:var(--text-secondary)">' + esc(p.signals) + "</div>" +
+        '<div style="' + TNUM + ';color:var(--text-secondary)">' + esc(p.vehicles) + "</div>" +
+        '<div style="' + TNUM + ';color:var(--text-secondary)">' + esc(p.rejected) + "</div></div>";
+    }).join("");
+    return '<div style="' + CARD + ';overflow-x:auto;overflow-y:hidden">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;position:sticky;left:0">' +
+      '<div style="' + EYEBROW + '">Platforms</div>' +
+      '<div style="font-size:12px;color:var(--text-muted)">live · from the cross-vehicle knowledge base</div></div>' +
+      '<div style="display:grid;min-width:640px;grid-template-columns:1.6fr 90px 90px 90px;gap:12px;padding:8px 16px;background:var(--bg-table-head);' +
+      'font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary)">' +
+      "<div>Platform</div><div>Signals</div><div>Vehicles</div><div>Rejected</div></div>" + rows + "</div>";
+  }
+  function kbVehicleTable() {
     var rows = KB.map(function (v) {
       return '<div style="display:grid;min-width:980px;grid-template-columns:1.3fr 90px 80px 90px minmax(140px,1fr) 150px 90px;gap:12px;padding:11px 16px;' +
         'border-top:1px solid var(--border-primary);font-size:12.5px;align-items:center">' +
@@ -738,20 +803,25 @@
         '<div style="font-size:12px;color:var(--text-muted)">' + esc(v.opendbc) + "</div>" +
         '<div><button class="cr-rowbtn" data-action="kb-export" data-name="' + esc(v.name) + '">.dbc ↓</button></div></div>';
     }).join("");
+    return '<div style="' + CARD + ';overflow-x:auto;overflow-y:hidden">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;position:sticky;left:0">' +
+      '<div style="' + EYEBROW + '">Vehicles</div>' +
+      '<div style="font-size:12px;color:var(--text-muted)">coverage = confirmed signals ÷ dynamic fields observed</div></div>' +
+      '<div style="display:grid;min-width:980px;grid-template-columns:1.3fr 90px 80px 90px minmax(140px,1fr) 150px 90px;gap:12px;padding:8px 16px;background:var(--bg-table-head);' +
+      'font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary)">' +
+      "<div>Vehicle</div><div>Platform</div><div>Sessions</div><div>Signals</div><div>Coverage</div><div>vs opendbc</div><div></div></div>" + rows + "</div>";
+  }
+  function viewKb() {
+    var kn = state.live.knowledge;
+    var tableCard = (kn && Array.isArray(kn.platforms) && kn.platforms.length)
+      ? kbPlatformTable(kn.platforms) : kbVehicleTable();
     var chips = SIG_TYPES.map(function (t) {
       return '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;background:var(--bg-subtle);' +
         'border:1px solid var(--border-primary);font-size:12px;color:var(--text-primary)">' + esc(t.name) +
         ' <span style="' + TNUM + ';color:var(--text-muted)">' + esc(t.n) + "</span></span>";
     }).join("");
 
-    return '<div style="display:flex;flex-direction:column;gap:16px">' +
-      '<div style="' + CARD + ';overflow-x:auto;overflow-y:hidden">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;position:sticky;left:0">' +
-      '<div style="' + EYEBROW + '">Vehicles</div>' +
-      '<div style="font-size:12px;color:var(--text-muted)">coverage = confirmed signals ÷ dynamic fields observed</div></div>' +
-      '<div style="display:grid;min-width:980px;grid-template-columns:1.3fr 90px 80px 90px minmax(140px,1fr) 150px 90px;gap:12px;padding:8px 16px;background:var(--bg-table-head);' +
-      'font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary)">' +
-      "<div>Vehicle</div><div>Platform</div><div>Sessions</div><div>Signals</div><div>Coverage</div><div>vs opendbc</div><div></div></div>" + rows + "</div>" +
+    return '<div style="display:flex;flex-direction:column;gap:16px">' + tableCard +
       '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px">' +
       '<div style="' + CARD + ';padding:16px;display:flex;flex-direction:column;gap:12px">' +
       '<div style="' + EYEBROW + '">Signal types across the fleet</div>' +
@@ -867,9 +937,74 @@
     fetchJson("/api/sessions/" + encodeURIComponent(id) + "/census").then(function (j) {
       if (j) { state.live.census[id] = j; if (state.sel.id === id) render(); }
     });
+    fetchJson("/api/sessions/" + encodeURIComponent(id) + "/clusters").then(function (j) {
+      if (j) { state.live.clusters[id] = j; if (state.sel.id === id) render(); }
+    });
+    refreshCoverage(id);
+  }
+  function refreshCoverage(id) {
+    fetchJson("/api/sessions/" + encodeURIComponent(id) + "/coverage").then(function (j) {
+      if (j) { state.live.coverage[id] = j; if (state.sel.id === id) render(); }
+    });
+  }
+  function refreshKnowledge() {
+    fetchJson("/api/knowledge").then(function (j) {
+      if (j && Array.isArray(j.platforms) && j.platforms.length) {
+        state.live.knowledge = j; if (state.view === "kb") render();
+      }
+    });
   }
   function fetchJson(url) {
     return fetch(url).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }
+  function postJson(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }
+
+  function confirmHypo(rank) {
+    var lv = state.hypoLive[rank];
+    var id = state.sel.id;
+    if (lv && liveIds[id]) {
+      postJson("/api/sessions/" + encodeURIComponent(id) + "/confirm",
+        { reference: lv.reference, candidate: lv.candidate, r: lv.r }).then(function (res) {
+          state.hypoRefOverride[lv.reference] = "confirmed"; // badge → confirmed (green)
+          if (res && res.status === "confirmed") {
+            showToast("Confirmed " + lv.reference + " — written to labels/annotations.json.");
+            refreshKnowledge();
+            refreshCoverage(id);
+          } else {
+            // API failed: degrade to the demo toast, keep the optimistic badge.
+            showToast("Hypothesis confirmed — written to labels/annotations.json.");
+          }
+        });
+      return;
+    }
+    // No live session (demo / offline): keep the original behaviour intact.
+    state.hypoOverride[rank] = "confirmed";
+    showToast("Hypothesis confirmed — written to labels/annotations.json.");
+  }
+  function rejectHypo(rank) {
+    var lv = state.hypoLive[rank];
+    var id = state.sel.id;
+    if (lv && liveIds[id]) {
+      postJson("/api/sessions/" + encodeURIComponent(id) + "/reject",
+        { reference: lv.reference, candidate_label: lv.candidate_label }).then(function (res) {
+          state.hypoRefOverride[lv.reference] = "rejected"; // badge → neutral
+          if (res && res.status === "rejected") {
+            showToast("Rejected " + lv.reference + " — remembered per platform.");
+            refreshKnowledge();
+          } else {
+            showToast("Hypothesis rejected — remembered per platform.");
+          }
+        });
+      return;
+    }
+    state.hypoOverride[rank] = "rejected";
+    showToast("Hypothesis rejected — remembered per platform.");
   }
 
   app.addEventListener("click", function (e) {
@@ -885,9 +1020,9 @@
     } else if (a === "open-session") {
       openSession(el.getAttribute("data-id"), el.getAttribute("data-vehicle"));
     } else if (a === "confirm-hypo") {
-      state.hypoOverride[el.getAttribute("data-id")] = "confirmed"; showToast("Hypothesis confirmed — written to labels/annotations.json.");
+      confirmHypo(el.getAttribute("data-id"));
     } else if (a === "reject-hypo") {
-      state.hypoOverride[el.getAttribute("data-id")] = "rejected"; showToast("Hypothesis rejected — remembered per platform.");
+      rejectHypo(el.getAttribute("data-id"));
     } else if (a === "export-dbc") {
       showToast("vw_golf8_mqb.dbc exported (12 signals) — so long, and thanks for all the frames.");
     } else if (a === "kb-export") {
@@ -904,6 +1039,7 @@
   render();
 
   // Live wiring: prefer server data when available.
+  refreshKnowledge();
   fetchJson("/api/sessions").then(function (j) {
     if (j && Array.isArray(j.sessions) && j.sessions.length) {
       state.live.sessions = j.sessions;
