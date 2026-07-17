@@ -28,8 +28,24 @@ time you need a shell on the device.
 
 ## Step 2 — pair from the phone
 
-In the companion app, **Pair AutoPi** scans that QR: it agrees the shared session
-id, verifies the control token, and pins the clocks (Cristian's algorithm). Done.
+The AutoPi is **headless — there's no screen to show a QR**. So the edge prints
+the pairing details to your SSH terminal (on `serve` startup, or any time via
+`canrosetta-edge --config /etc/canrosetta/config.yaml pairing`): the **host**, the
+**control token**, and a **scannable ASCII QR**. In the companion app's **Pair
+AutoPi** screen either:
+
+- **scan that terminal QR**, or
+- **enter Host + Token manually** (on the AutoPi Wi-Fi AP the host is usually
+  `http://192.168.4.1:8765`; the token is the one the installer generated).
+
+Either way it verifies the token and pins the clocks (Cristian's algorithm).
+
+### No AutoPi? Record the phone alone
+
+You don't need a paired AutoPi to record. On the Pair screen tap **"Record
+without AutoPi"** for a phone-only session — IMU, GPS, and (optionally) dashboard
+video/stills, no edge coordination. The resulting companion-only session uploads
+and identifies the same way; there's just no CAN part to merge.
 
 ## Step 3 — updates come from the phone
 

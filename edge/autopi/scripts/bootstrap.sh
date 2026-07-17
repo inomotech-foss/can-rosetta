@@ -64,10 +64,10 @@ UNITEOF
 systemctl daemon-reload
 systemctl enable --now canrosetta-edge.service
 
-TOKEN="$(python3 -c "import yaml;print(yaml.safe_load(open('${CFG}'))['control_token'])")"
-IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo
-echo "==> canrosetta-edge is running on port ${PORT}."
-echo "    Pair the phone with this QR payload (encode as a QR on the AutoPi config page):"
-echo "    {\"host\":\"http://${IP:-<autopi-ip>}:${PORT}\",\"token\":\"${TOKEN}\"}"
+echo "==> canrosetta-edge is running on port ${PORT}. Pair the phone with this"
+echo "    (scan the QR straight off this SSH terminal, or type Host + Token):"
+echo
+"$CANBIN" --config "$CFG" pairing || true
+echo
 echo "    From now on, update from the phone (Settings → Update AutoPi) — no SSH needed."

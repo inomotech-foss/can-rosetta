@@ -19,8 +19,8 @@ dependencies = [
 can = ["python-can>=4.0"]
 elm = ["pyserial>=3.5"]
 parquet = ["pyarrow>=8.0"]
-control = ["aiohttp>=3.9"]
-dev = ["pytest>=7.0", "jsonschema>=4.0", "aiohttp>=3.9", "ruff>=0.1"]
+control = ["aiohttp>=3.9", "qrcode>=7.0"]
+dev = ["pytest>=7.0", "jsonschema>=4.0", "aiohttp>=3.9", "qrcode>=7.0", "ruff>=0.1"]
 
 [project.scripts]
 canrosetta-edge = "canrosetta_edge.cli:main"

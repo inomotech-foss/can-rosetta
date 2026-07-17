@@ -23,7 +23,7 @@ struct PairView: View {
                     header
                     viewfinder
                     timeSyncLine
-                    manualFallback
+                    manualPairing
                     detailsCard
                     advancedLink
                 }
@@ -31,11 +31,24 @@ struct PairView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 12)
             }
-            PrimaryButton(title: "Confirm — arm both recorders") {
-                flow.confirmPairing(controller: controller, connection: connection)
+            VStack(spacing: 10) {
+                PrimaryButton(title: "Confirm — arm both recorders") {
+                    flow.confirmPairing(controller: controller, connection: connection)
+                }
+                Button("Record without AutoPi") {
+                    flow.recordStandalone(controller: controller)
+                }
+                .font(.subheadline).foregroundStyle(Theme.textMuted)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 8)
+        }
+        .onAppear {
+            // A headless AutoPi's AP gateway is the sensible default — user just
+            // adds the token.
+            if connection.host.trimmingCharacters(in: .whitespaces).isEmpty {
+                connection.host = "http://192.168.4.1:8765"
+            }
         }
     }
 
@@ -47,7 +60,7 @@ struct PairView: View {
             Text("Pair AutoPi")
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(Theme.text)
-            Text("Point the phone at the AutoPi's screen to exchange host, token and session id.")
+            Text("Scan the AutoPi's QR to exchange host, token and session id — or enter them by hand below. A headless AutoPi has no screen, so manual entry is a first-class option.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
         }
@@ -108,27 +121,28 @@ struct PairView: View {
         }
     }
 
-    // MARK: Manual fallback
+    // MARK: Manual pairing (first-class, headless-friendly)
 
-    private var manualFallback: some View {
+    private var manualPairing: some View {
         FlowCard {
-            SectionLabel(text: "Manual pairing")
+            SectionLabel(text: "Host + token")
+            Spacer().frame(height: 6)
+            Text("Headless AutoPi? The installer prints the host + token (and a QR you can scan from your SSH terminal) — enter them here or scan above.")
+                .font(.caption).foregroundStyle(Theme.textMuted)
             Spacer().frame(height: 12)
             FlowField(placeholder: "http://192.168.4.1:8765", text: $connection.host, secure: false)
             Spacer().frame(height: 10)
-            FlowField(placeholder: "Bearer token", text: $connection.token, secure: true)
-            Spacer().frame(height: 12)
-            HStack(spacing: 8) {
-                ForEach(phrase, id: \.self) { Chip(text: $0) }
-                Spacer()
-            }
+            FlowField(placeholder: "Control token", text: $connection.token, secure: true)
             Spacer().frame(height: 14)
-            PrimaryButton(title: connection.connectionState == .connecting ? "Connecting…" : "Connect & sync",
+            PrimaryButton(title: connection.connectionState == .connecting ? "Pairing…" : "Pair",
                           enabled: connection.isConfigured && !connection.isBusy,
                           background: Color.white.opacity(0.10)) {
                 Task { await pairManually() }
             }
-            if case .failed(let reason) = connection.connectionState {
+            if handshakeComplete {
+                Spacer().frame(height: 8)
+                Text("Handshake complete.").font(.caption).foregroundStyle(Theme.green)
+            } else if case .failed(let reason) = connection.connectionState {
                 Spacer().frame(height: 8)
                 Text(reason).font(.caption).foregroundStyle(Theme.redLight)
             }
