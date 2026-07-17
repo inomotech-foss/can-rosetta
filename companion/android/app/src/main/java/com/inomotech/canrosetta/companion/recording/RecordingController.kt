@@ -3,6 +3,14 @@ package com.inomotech.canrosetta.companion.recording
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.location.Location
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.StatFs
 import android.os.SystemClock
 import android.util.Log
 import androidx.camera.core.CameraSelector
@@ -17,6 +25,7 @@ import com.inomotech.canrosetta.companion.sensors.LocationSource
 import com.inomotech.canrosetta.companion.sensors.MotionSource
 import com.inomotech.canrosetta.companion.time.Clock
 import com.inomotech.canrosetta.companion.time.SessionId
+import com.inomotech.canrosetta.companion.time.TimeMath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,6 +37,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.json.JSONObject
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -35,6 +45,7 @@ import java.util.concurrent.Executors
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.coroutines.resume
+import kotlin.math.sqrt
 
 /** Live status snapshot the UI observes. */
 data class RecordingStatus(
@@ -47,9 +58,33 @@ data class RecordingStatus(
     val gpsHorizontalAccuracy: Double? = null,
     val locationPermissionGranted: Boolean = false,
     val elapsed: Double = 0.0,
+    /** Cumulative ground distance from GPS fixes (metres). */
+    val distanceMeters: Double = 0.0,
     val exportPath: String? = null,
     val lastError: String? = null,
 )
+
+/**
+ * Latest, lightly-smoothed user acceleration in g (gravity removed), sampled from
+ * the IMU at ~30 Hz for the recording screen's g-ball. `x` = lateral (device
+ * right +), `y` = longitudinal (device up +). Mirrors iOS `accelGX/accelGY`.
+ */
+data class AccelG(val x: Double = 0.0, val y: Double = 0.0)
+
+/**
+ * Pre-flight mount-steadiness estimate. `rms` is the rolling standard deviation of
+ * accelerometer magnitude (g) from the standby vibration monitor — a proxy for how
+ * much the cradle rattles. Mirrors iOS `mountVibrationRMS`/`hasMountData`.
+ */
+data class MountState(val rms: Double = 0.0, val hasData: Boolean = false) {
+    /** Steady enough to record — or no accelerometer data at all (e.g. emulator). */
+    val steady: Boolean get() = !hasData || rms < MOUNT_VIBRATION_THRESHOLD
+
+    companion object {
+        /** The standby monitor treats the cradle as steady below this g-RMS. */
+        const val MOUNT_VIBRATION_THRESHOLD = 0.08
+    }
+}
 
 /**
  * Orchestrates one recording session: owns the sensor sources, writers, and the
@@ -82,7 +117,19 @@ class RecordingController(
     private val _status = MutableStateFlow(RecordingStatus())
     val status: StateFlow<RecordingStatus> = _status
 
+    /** Live g-ball feed (own flow, written from the sensor thread — no race with [status]). */
+    private val _accel = MutableStateFlow(AccelG())
+    val accel: StateFlow<AccelG> = _accel
+
+    /** Pre-flight mount steadiness (own flow, written from the vibration thread). */
+    private val _mount = MutableStateFlow(MountState())
+    val mount: StateFlow<MountState> = _mount
+
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
+
+    private val sensorManager by lazy {
+        context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    }
 
     // Dedicated executors kept for the controller's lifetime.
     private val analysisExecutor = Executors.newSingleThreadExecutor()
@@ -97,8 +144,29 @@ class RecordingController(
     private var locationWriter: JsonlWriter? = null
     private var cameraProvider: ProcessCameraProvider? = null
 
+    // A standby GPS source so pre-flight can surface a live fix before recording.
+    private var standbyLocation: LocationSource? = null
+
+    // Pre-flight standby vibration monitor (independent of the recording IMU).
+    private var vibThread: HandlerThread? = null
+    private var vibListener: SensorEventListener? = null
+    private val vibMagnitudes = ArrayDeque<Double>() // touched only on the vib thread
+
     private var sessionDir: File? = null
     private var startUtc: Double = 0.0
+
+    // Distance accumulation from GPS fixes (touched only on the main looper).
+    private var distanceMeters = 0.0
+    private var lastFixLat: Double? = null
+    private var lastFixLon: Double? = null
+
+    // Sync markers pinned into this session (written into the manifest at stop, and
+    // re-persisted if a marker is pinned just after stopping).
+    private val syncMarkers = mutableListOf<SessionManifest.SyncMarker>()
+
+    // Cached finalize inputs so a post-stop sync marker can re-write manifest/zip.
+    private var finalizeStreams: List<SessionManifest.Stream> = emptyList()
+    private var finalizeCreatedUtc: Double = 0.0
 
     private var tickerJob: Job? = null
     private var lastRateCount = 0L
@@ -130,9 +198,51 @@ class RecordingController(
         update { it.copy(locationPermissionGranted = granted) }
     }
 
+    // MARK: - Pre-flight monitors
+
+    /**
+     * Start the live checks the pre-flight screen relies on: begin a standby GPS
+     * fix (if permitted) to surface accuracy, and monitor accelerometer vibration
+     * to judge how firmly the phone is cradled. Idempotent.
+     */
+    fun startPreflight() {
+        if (!_status.value.isRecording && standbyLocation == null &&
+            _status.value.locationPermissionGranted && hasLocationPermission()
+        ) {
+            val loc = LocationSource(context)
+            loc.onRecord = { rec ->
+                val h = rec.optDouble("h_acc", -1.0)
+                if (h >= 0) update { it.copy(gpsHorizontalAccuracy = h) }
+            }
+            loc.start()
+            standbyLocation = loc
+        }
+        startVibrationMonitor()
+    }
+
+    /**
+     * Stop the pre-flight vibration monitor (called when leaving pre-flight without
+     * recording). The standby GPS is left running; it is cheap and warms up the fix
+     * for the drive.
+     */
+    fun stopPreflight() {
+        stopVibrationMonitor()
+    }
+
     fun start() {
         if (_status.value.isRecording) return
-        update { it.copy(exportPath = null, lastError = null) }
+        update { it.copy(exportPath = null, lastError = null, distanceMeters = 0.0) }
+
+        // The recording sources take over from the standby monitors.
+        standbyLocation?.stop()
+        standbyLocation = null
+        stopVibrationMonitor()
+
+        syncMarkers.clear()
+        distanceMeters = 0.0
+        lastFixLat = null
+        lastFixLon = null
+        _accel.value = AccelG()
 
         try {
             val clock = Clock()
@@ -149,12 +259,37 @@ class RecordingController(
             this.locationWriter = locationWriter
 
             val motion = MotionSource(context, clock)
-            motion.onRecord = { motionWriter.append(it) }
+            // Persist every sample; forward a throttled, low-passed copy to the
+            // g-ball. This lambda runs only on the motion handler thread, so the
+            // captured throttle/low-pass state needs no extra synchronisation.
+            var lastBallMs = 0L
+            var ballX = 0.0
+            var ballY = 0.0
+            motion.onRecord = { rec ->
+                motionWriter.append(rec)
+                val nowMs = SystemClock.elapsedRealtime()
+                if (nowMs - lastBallMs >= 33L) {
+                    lastBallMs = nowMs
+                    val acc = rec.optJSONArray("acc")
+                    if (acc != null && acc.length() >= 2) {
+                        val ax = acc.optDouble(0, 0.0)
+                        val ay = acc.optDouble(1, 0.0)
+                        val a = 0.35
+                        ballX = ballX * (1 - a) + ax * a
+                        ballY = ballY * (1 - a) + ay * a
+                        _accel.value = AccelG(ballX, ballY)
+                    }
+                }
+            }
             motionSource = motion
             motion.start()
 
             val location = LocationSource(context)
-            location.onRecord = { locationWriter.append(it) }
+            location.onRecord = { rec ->
+                locationWriter.append(rec)
+                val h = rec.optDouble("h_acc", -1.0)
+                if (h >= 0) accumulateDistance(rec.optDouble("lat"), rec.optDouble("lon"))
+            }
             locationSource = location
             location.start()
 
@@ -180,6 +315,7 @@ class RecordingController(
         if (!_status.value.isRecording) return
         update { it.copy(isRecording = false) }
         stopTicker()
+        _accel.value = AccelG()
 
         motionSource?.stop()
         locationSource?.stop()
@@ -203,16 +339,12 @@ class RecordingController(
             locationWriter?.close()
 
             val videoFrames = videoRecorder?.frameCount ?: 0
-            try {
-                writeManifest(motionRows, locationRows, hadVideo, videoFrames, start, endUtc)
-                val zip = withContext(Dispatchers.IO) { exportArchive() }
-                update { it.copy(exportPath = zip.absolutePath) }
-                Log.i(AppInfo.TAG, "Session finalised: ${zip.name}")
-            } catch (e: Exception) {
-                Log.e(AppInfo.TAG, "Failed to finalise session: ${e.message}")
-                update { it.copy(lastError = e.message) }
-            }
+            finalizeStreams = buildStreams(motionRows, locationRows, hadVideo, videoFrames, start, endUtc)
+            finalizeCreatedUtc = start
+            rewriteManifestAndExport()
 
+            // Reset transient owners. Keep sessionDir + syncMarkers so a post-stop
+            // sync marker can stamp and re-persist.
             motionSource = null
             videoRecorder = null
             photoCapture = null
@@ -223,10 +355,33 @@ class RecordingController(
         }
     }
 
+    // MARK: - Sync markers
+
+    /**
+     * Pin a sync marker (e.g. a triple brake-flash) into the current session. If
+     * recording, it lands in the manifest at stop; if pinned just after stop (the
+     * guided "sync marker" step), the manifest and archive are re-written. Mirrors
+     * iOS `addSyncMarker`.
+     */
+    fun addSyncMarker(kind: String, count: Int? = null) {
+        val t = clock?.nowUtc() ?: (System.currentTimeMillis() / 1000.0)
+        synchronized(syncMarkers) {
+            syncMarkers.add(SessionManifest.SyncMarker(kind, t, count))
+        }
+        Log.i(AppInfo.TAG, "Pinned sync marker $kind at $t")
+        if (!_status.value.isRecording && sessionDir != null) {
+            scope.launch { rewriteManifestAndExport() }
+        }
+    }
+
     // MARK: - Camera
 
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
     private fun startCamera(clock: Clock, phoneDir: File) {
@@ -322,15 +477,14 @@ class RecordingController(
 
     // MARK: - Manifest & export
 
-    private fun writeManifest(
+    private fun buildStreams(
         motionRows: Long,
         locationRows: Long,
         hadVideo: Boolean,
         videoFrames: Int,
         startUtc: Double,
         endUtc: Double,
-    ) {
-        val dir = sessionDir ?: return
+    ): List<SessionManifest.Stream> {
         val streams = mutableListOf(
             SessionManifest.Stream("phone/motion.jsonl", "motion", motionRows, null, startUtc, endUtc),
             SessionManifest.Stream("phone/location.jsonl", "location", locationRows, null, startUtc, endUtc),
@@ -343,14 +497,37 @@ class RecordingController(
                 )
             )
         }
+        return streams
+    }
+
+    /**
+     * Write `manifest.json` (with the current sync markers) and re-export the zip
+     * archive. Safe to call again after stop when a marker is pinned.
+     */
+    private suspend fun rewriteManifestAndExport() {
+        val dir = sessionDir ?: return
+        try {
+            writeManifestFile(dir)
+            val zip = withContext(Dispatchers.IO) { exportArchive() }
+            update { it.copy(exportPath = zip.absolutePath) }
+            Log.i(AppInfo.TAG, "Session finalised: ${zip.name}")
+        } catch (e: Exception) {
+            Log.e(AppInfo.TAG, "Failed to finalise session: ${e.message}")
+            update { it.copy(lastError = e.message) }
+        }
+    }
+
+    private fun writeManifestFile(dir: File) {
+        val markersCopy = synchronized(syncMarkers) { syncMarkers.toList() }
         val manifest = SessionManifest.build(
             sessionId = sessionId.value,
-            createdUtc = startUtc,
+            createdUtc = finalizeCreatedUtc,
             deviceId = SessionManifest.deviceId(context),
             clockSource = AppInfo.CLOCK_SOURCE,
             utcOffsetEstS = 0.0,
             errEstS = 0.1,
-            streams = streams,
+            streams = finalizeStreams,
+            syncMarkers = markersCopy,
         )
         SessionManifest.write(File(dir, "manifest.json"), manifest)
     }
@@ -378,6 +555,83 @@ class RecordingController(
         val dir = File(File(context.filesDir, "sessions"), "session-$id")
         File(dir, "phone").mkdirs()
         return dir
+    }
+
+    // MARK: - Device capability queries
+
+    /** Whether the recording IMU (linear acceleration) is available on this device. */
+    val isMotionAvailable: Boolean
+        get() = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION) != null
+
+    /** Free disk available under the app's files dir, in bytes (via [StatFs]). */
+    fun freeDiskBytes(): Long =
+        try {
+            StatFs(context.filesDir.absolutePath).availableBytes
+        } catch (e: Exception) {
+            Log.w(AppInfo.TAG, "StatFs failed: ${e.message}")
+            Long.MAX_VALUE
+        }
+
+    // MARK: - Vibration monitor
+
+    private fun startVibrationMonitor() {
+        val accel = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
+        if (vibThread != null) return
+        synchronized(vibMagnitudes) { vibMagnitudes.clear() }
+        _mount.value = MountState()
+        val t = HandlerThread("canrosetta-vib").apply { start() }
+        vibThread = t
+        val handler = Handler(t.looper)
+        val listener = object : SensorEventListener {
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+            override fun onSensorChanged(event: SensorEvent) {
+                val x = TimeMath.toG(event.values[0])
+                val y = TimeMath.toG(event.values[1])
+                val z = TimeMath.toG(event.values[2])
+                pushVibration(sqrt(x * x + y * y + z * z))
+            }
+        }
+        vibListener = listener
+        // ~20 Hz standby monitor.
+        sensorManager.registerListener(listener, accel, 50_000, handler)
+    }
+
+    private fun stopVibrationMonitor() {
+        vibListener?.let { sensorManager.unregisterListener(it) }
+        vibListener = null
+        vibThread?.quitSafely()
+        vibThread = null
+        synchronized(vibMagnitudes) { vibMagnitudes.clear() }
+        _mount.value = MountState()
+    }
+
+    /** Rolling standard deviation of accelerometer magnitude over ~2 s (40 samples). */
+    private fun pushVibration(mag: Double) {
+        val snapshot = synchronized(vibMagnitudes) {
+            vibMagnitudes.addLast(mag)
+            while (vibMagnitudes.size > 40) vibMagnitudes.removeFirst()
+            vibMagnitudes.toDoubleArray()
+        }
+        if (snapshot.size < 10) return
+        val n = snapshot.size.toDouble()
+        val mean = snapshot.sum() / n
+        var variance = 0.0
+        for (v in snapshot) variance += (v - mean) * (v - mean)
+        variance /= n
+        _mount.value = MountState(sqrt(variance), true)
+    }
+
+    private fun accumulateDistance(lat: Double, lon: Double) {
+        val prevLat = lastFixLat
+        val prevLon = lastFixLon
+        if (prevLat != null && prevLon != null) {
+            val results = FloatArray(1)
+            Location.distanceBetween(prevLat, prevLon, lat, lon, results)
+            val step = results[0].toDouble()
+            if (step.isFinite()) distanceMeters += step
+        }
+        lastFixLat = lat
+        lastFixLon = lon
     }
 
     // MARK: - Live UI ticker
@@ -419,6 +673,7 @@ class RecordingController(
                 photoCount = photoCapture?.photoCount ?: 0,
                 imuRateHz = rate,
                 gpsHorizontalAccuracy = locationSource?.lastHorizontalAccuracy,
+                distanceMeters = distanceMeters,
             )
         }
     }
@@ -436,6 +691,7 @@ class RecordingController(
         motionWriter = null
         locationWriter = null
         stopTicker()
+        _accel.value = AccelG()
         update { it.copy(isRecording = false) }
     }
 

@@ -13,14 +13,16 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.inomotech.canrosetta.companion.recording.RecordingController
 import com.inomotech.canrosetta.companion.remote.EdgeConnection
-import com.inomotech.canrosetta.companion.ui.MainScreen
 import com.inomotech.canrosetta.companion.ui.RemoteControlScreen
+import com.inomotech.canrosetta.companion.ui.flow.DriveFlowScreen
+import com.inomotech.canrosetta.companion.ui.flow.DriveFlowViewModel
 import com.inomotech.canrosetta.companion.ui.theme.CanRosettaTheme
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var controller: RecordingController
     private lateinit var connection: EdgeConnection
+    private lateinit var flow: DriveFlowViewModel
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -33,6 +35,7 @@ class MainActivity : ComponentActivity() {
 
         controller = RecordingController(applicationContext, this)
         connection = EdgeConnection(applicationContext)
+        flow = DriveFlowViewModel(controller, connection)
         controller.setLocationPermissionGranted(hasPermission(Manifest.permission.ACCESS_FINE_LOCATION))
 
         requestNeededPermissions()
@@ -43,7 +46,7 @@ class MainActivity : ComponentActivity() {
                 if (showRemote) {
                     RemoteControlScreen(controller, connection, onBack = { showRemote = false })
                 } else {
-                    MainScreen(controller, connection, onOpenRemote = { showRemote = true })
+                    DriveFlowScreen(controller, connection, flow, onOpenAdvanced = { showRemote = true })
                 }
             }
         }
