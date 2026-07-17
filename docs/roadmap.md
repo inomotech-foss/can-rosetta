@@ -21,6 +21,16 @@ recorded sessions; the learned foundation model is scaffolded, not yet trained.
       high-res stills for OCR accuracy).
 - [x] **Event references**: telltale/gear detection identifies discrete/flag
       signals, not just continuous ones.
+- [x] **Session merging** (`merge.py`): stitch edge + companion parts sharing a
+      `session_id`; report "awaiting merge" when a counterpart is missing.
+- [x] **Unidentified-signal clustering** (`clusters.py`): surface structured
+      signals that match no reference, grouped by mutual correlation (active-
+      learning targets).
+- [x] **Cross-vehicle knowledge base** (`kb.py`): persistent confirmed mappings +
+      per-platform **rejection memory** (false friends stay rejected), a
+      **coverage** metric, and confirm→`annotations.json`.
+- [x] **Sync-marker alignment** (`align.estimate_from_markers`): pin clocks off a
+      deliberate marker (e.g. brake_pulse) as a cross-check to cross-correlation.
 - [ ] **Cross-component integration test**: drive the edge simulator and a
       synthetic phone part into one session and run the server on it.
 - [x] **Multiplexed signal handling** (`mux.py`): detect the selector byte via

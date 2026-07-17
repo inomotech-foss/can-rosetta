@@ -87,6 +87,50 @@ def _cmd_import_candump(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_merge(args: argparse.Namespace) -> int:
+    from .merge import merge_all, merge_status
+
+    for s in merge_status(args.root):
+        print(f"  {s['session_id']}: {s['status']} (roles={s['roles']}, "
+              f"missing={s['missing']})")
+    merged = merge_all(args.root, args.out)
+    print(f"merged {len(merged)} complete session(s) into {args.out}")
+    return 0
+
+
+def _cmd_clusters(args: argparse.Namespace) -> int:
+    from .clusters import unidentified_signals
+
+    res = unidentified_signals(load_session(args.session))
+    if not res.clusters:
+        print("no unidentified structured signals")
+    for i, c in enumerate(res.clusters, 1):
+        tag = "mutually-correlated cluster" if len(c) > 1 else "lone signal"
+        print(f"  [{i}] {tag}: {', '.join(c)}")
+    if res.explained:
+        print(f"  ({len(res.explained)} arb-IDs explained by a reference)")
+    return 0
+
+
+def _cmd_coverage(args: argparse.Namespace) -> int:
+    from .kb import coverage
+
+    session = load_session(args.session)
+    cov = coverage(session, identify_session(session))
+    print(f"coverage: {cov['confirmed_fields']}/{cov['dynamic_fields']} dynamic fields "
+          f"= {cov['coverage'] * 100:.0f}%")
+    return 0
+
+
+def _cmd_kb(args: argparse.Namespace) -> int:
+    from .kb import KnowledgeBase
+
+    for p in KnowledgeBase.load(args.path).summary():
+        print(f"  {p['platform']}: {p['signals']} signals · {p['vehicles']} vehicles · "
+              f"{p['rejected']} rejected")
+    return 0
+
+
 def _cmd_mux(args: argparse.Namespace) -> int:
     from .mux import detect_multiplexor
 
@@ -175,6 +219,24 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("mux", help="detect multiplexed frames (selector byte per arb ID)")
     s.add_argument("session")
     s.set_defaults(func=_cmd_mux)
+
+    s = sub.add_parser("merge", help="merge edge+companion session parts sharing a session_id")
+    s.add_argument("root", help="directory of session parts")
+    s.add_argument("out", help="output directory for merged sessions")
+    s.set_defaults(func=_cmd_merge)
+
+    s = sub.add_parser("clusters",
+                       help="cluster structured signals that match no reference")
+    s.add_argument("session")
+    s.set_defaults(func=_cmd_clusters)
+
+    s = sub.add_parser("coverage", help="confirmed ÷ dynamic-fields coverage for a session")
+    s.add_argument("session")
+    s.set_defaults(func=_cmd_coverage)
+
+    s = sub.add_parser("kb", help="print the cross-vehicle knowledge-base summary")
+    s.add_argument("path", help="path to the knowledge-base JSON")
+    s.set_defaults(func=_cmd_kb)
 
     s = sub.add_parser("perceive",
                        help="dashboard-video perception -> labels/ (needs video + perception.json)")

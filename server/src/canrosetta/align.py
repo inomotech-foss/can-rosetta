@@ -70,6 +70,35 @@ def _gps_speed_kmh(session: Session) -> tuple[np.ndarray, np.ndarray] | None:
     return t, s
 
 
+def estimate_from_markers(session: Session, *, max_lag_s: float = 5.0) -> Alignment | None:
+    """Estimate the offset from a deliberate sync marker (e.g. brake_pulse ×3).
+
+    The manifest records a marker's time on the companion clock; the same physical
+    event (a hard deceleration) appears in the edge IMU on the edge clock. The
+    offset that maps edge→companion is ``marker_t_utc − edge_event_time``, where
+    the edge event is the strongest deceleration near the marker. Complements the
+    cross-correlation estimate as an independent, single-event cross-check.
+    """
+    markers = session.manifest.get("sync_markers", [])
+    em = session.edge_motion
+    if not markers or not em or "acc_x" not in em:
+        return None
+    t = em["t_utc"]
+    acc = em["acc_x"]
+    marker_t = float(markers[0].get("t_utc", 0.0))
+    win = (t >= marker_t - max_lag_s) & (t <= marker_t + max_lag_s)
+    if win.sum() < 3:
+        return None
+    idx = np.where(win)[0]
+    # strongest deceleration (most negative longitudinal accel) in the window
+    edge_event_t = float(t[idx[int(np.argmin(acc[idx]))]])
+    delta = marker_t - edge_event_t
+    strength = float(-np.min(acc[idx]))  # g of deceleration; a proxy for confidence
+    conf = float(np.clip(strength / 0.2, 0.0, 1.0))
+    return Alignment(delta=delta, confidence=conf, method="sync_marker",
+                     pair=(str(markers[0].get("kind", "marker")), "edge_imu_decel"))
+
+
 def estimate_alignment(
     session: Session, *, hz: float = 10.0, max_lag_s: float = 5.0
 ) -> Alignment:

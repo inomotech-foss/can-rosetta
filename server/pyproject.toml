@@ -55,6 +55,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI uses callables (File/Query/Depends) as argument defaults by design.
 extend-immutable-calls = [
+  "fastapi.Body",
   "fastapi.File",
   "fastapi.Query",
   "fastapi.Depends",

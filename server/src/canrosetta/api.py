@@ -48,12 +48,21 @@ import zipfile
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
+from .clusters import unidentified_signals
 from .identify import identify_session
+from .kb import (
+    KnowledgeBase,
+    apply_rejections,
+    coverage,
+    platform_of,
+    write_annotation,
+)
+from .merge import merge_status
 from .mux import detect_multiplexor
 from .roles import message_roles
 from .session import Session, load_session
@@ -238,6 +247,9 @@ def api_session_identify(
     path = _resolve_session_dir(session_id)
     session = _load_or_422(path)
     result = identify_session(session, hz=hz, top_k=top_k)
+    # honour per-platform rejection memory (false friends stay rejected)
+    kb = KnowledgeBase.load(_kb_path())
+    apply_rejections(result, kb, platform_of(session))
     return JSONResponse(result.as_dict())
 
 
@@ -283,6 +295,75 @@ def api_session_census(session_id: str) -> JSONResponse:
             "messages": messages,
         }
     )
+
+@app.get("/api/sessions/{session_id}/coverage")
+def api_session_coverage(session_id: str) -> JSONResponse:
+    """Coverage = dynamic arb-IDs with a confident mapping ÷ dynamic arb-IDs observed."""
+    session = _load_or_422(_resolve_session_dir(session_id))
+    result = identify_session(session)
+    return JSONResponse(coverage(session, result))
+
+
+@app.get("/api/sessions/{session_id}/clusters")
+def api_session_clusters(session_id: str) -> JSONResponse:
+    """Structured signals that match no reference, clustered by mutual correlation."""
+    session = _load_or_422(_resolve_session_dir(session_id))
+    res = unidentified_signals(session)
+    return JSONResponse({
+        "session_id": session.session_id,
+        "clusters": res.clusters,
+        "explained": res.explained,
+    })
+
+
+@app.get("/api/merge-status")
+def api_merge_status() -> JSONResponse:
+    """Per session_id: which parts are present, and what's still awaiting a counterpart."""
+    return JSONResponse({"sessions": merge_status(_sessions_root())})
+
+
+def _kb_path() -> Path:
+    env = os.environ.get("CANROSETTA_KB")
+    return Path(env) if env else _sessions_root() / "kb.json"
+
+
+@app.get("/api/knowledge")
+def api_knowledge() -> JSONResponse:
+    """Cross-vehicle signal knowledge base summary (per platform)."""
+    kb = KnowledgeBase.load(_kb_path())
+    return JSONResponse({"platforms": kb.summary()})
+
+
+@app.post("/api/sessions/{session_id}/confirm")
+def api_confirm(session_id: str, body: dict = Body(...)) -> JSONResponse:
+    """Confirm a hypothesis: persist to the KB and write a training annotation."""
+    path = _resolve_session_dir(session_id)
+    session = _load_or_422(path)
+    ref = body.get("reference")
+    cand = body.get("candidate") or {}
+    if not ref or not cand:
+        raise HTTPException(status_code=400, detail="need 'reference' and 'candidate'")
+    r = float(body.get("r", 0.0))
+    kb = KnowledgeBase.load(_kb_path())
+    kb.confirm(platform_of(session), ref, cand, r, vehicle=session.session_id)
+    kb.save()
+    write_annotation(path, ref, cand, r)
+    return JSONResponse({"status": "confirmed", "reference": ref})
+
+
+@app.post("/api/sessions/{session_id}/reject")
+def api_reject(session_id: str, body: dict = Body(...)) -> JSONResponse:
+    """Reject a hypothesis: remembered per platform (stays rejected on the next car)."""
+    session = _load_or_422(_resolve_session_dir(session_id))
+    ref = body.get("reference")
+    label = body.get("candidate_label") or (body.get("candidate") or {}).get("label")
+    if not ref or not label:
+        raise HTTPException(status_code=400, detail="need 'reference' and 'candidate_label'")
+    kb = KnowledgeBase.load(_kb_path())
+    kb.reject(platform_of(session), ref, label)
+    kb.save()
+    return JSONResponse({"status": "rejected", "reference": ref, "candidate": label})
+
 
 # Cap uploads to keep the endpoint cheap and DoS-resistant. Sessions are small
 # (JSONL / parquet); 256 MiB is generous.
