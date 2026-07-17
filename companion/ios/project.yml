@@ -11,8 +11,10 @@ settings:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    DEVELOPMENT_TEAM: "" # set your Apple Developer team id here to run on device
     ENABLE_USER_SCRIPT_SANDBOXING: YES
+    # Signing is provided by Signing.xcconfig (see configFiles below), which
+    # optionally includes a gitignored Signing.local.xcconfig for your team id.
+    # No DEVELOPMENT_TEAM / CODE_SIGNING_* here — that would override the xcconfig.
 
 targets:
   CanRosettaCompanion:
@@ -24,17 +26,17 @@ targets:
       - path: CanRosettaCompanion
         excludes:
           - "Info.plist"
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.inomotech.canrosetta.companion
         PRODUCT_NAME: CanRosettaCompanion
         TARGETED_DEVICE_FAMILY: "1" # iPhone
-        # Simulator / CI builds need no code signing. A device build can still
-        # override these (set DEVELOPMENT_TEAM + CODE_SIGN_STYLE=Automatic).
-        CODE_SIGN_STYLE: Manual
-        CODE_SIGN_IDENTITY: ""
-        CODE_SIGNING_REQUIRED: NO
-        CODE_SIGNING_ALLOWED: NO
+        # Code signing lives in Signing.xcconfig (automatic). Xcode signs device
+        # builds; the Simulator needs none. CI passes CODE_SIGNING_ALLOWED=NO on
+        # the xcodebuild command line, which cleanly disables signing there.
     # System frameworks (CoreMotion, CoreLocation, AVFoundation) are linked
     # automatically by the Swift compiler via module autolinking on `import`.
     info:
