@@ -31,6 +31,13 @@ The brute-force sweep only enumerates the read services above. Any service that
 could change vehicle state is out of scope for this project and PRs adding them
 will be declined.
 
+**Command identification is passive.** The server can *identify* which messages
+are commands (by observing that a message's change precedes its effect — see
+`roles.py`), and can *decode* their structure into a DBC. It does **not**, and
+this project will not, transmit, replay, or inject command frames onto a vehicle
+bus. Identifying command structure from recorded traffic is analysis; sending
+commands is actuation, which is out of scope.
+
 ## Operational rules
 
 - **Never run discovery or brute-force while the vehicle is moving.** Probe with

@@ -23,6 +23,11 @@ from .synth import generate
 
 
 def _cmd_make_sample(args: argparse.Namespace) -> int:
+    if args.command_demo:
+        from .synth import generate_command_demo
+        out = generate_command_demo(args.dir, duration_s=args.duration)
+        print(f"wrote synthetic command-causality demo session to {out}")
+        return 0
     if args.charging:
         from .synth import generate_ev_charging
         out = generate_ev_charging(args.dir, duration_s=args.duration)
@@ -82,6 +87,17 @@ def _cmd_import_candump(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_roles(args: argparse.Namespace) -> int:
+    from .roles import message_roles
+
+    session = load_session(args.session)
+    roles = message_roles(session)
+    for aid, r in sorted(roles.items()):
+        print(f"  0x{aid:X}: {r.role:9} period={r.period_ms:7.1f}ms "
+              f"jitter={r.jitter:.2f} n={r.count}")
+    return 0
+
+
 def _cmd_perceive(args: argparse.Namespace) -> int:
     from .perception.run import perceive
 
@@ -119,6 +135,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="add an EV battery module (voltage/current/SoC)")
     s.add_argument("--charging", action="store_true",
                    help="generate an EV charging session (parked, plugged in)")
+    s.add_argument("--command-demo", dest="command_demo", action="store_true",
+                   help="generate a command->effect causality demo session")
     s.set_defaults(func=_cmd_make_sample)
 
     s = sub.add_parser("identify", help="align + extract + identify signals")
@@ -132,6 +150,11 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("fingerprint", help="print behavioral fingerprints per arb ID")
     s.add_argument("session")
     s.set_defaults(func=_cmd_fingerprint)
+
+    s = sub.add_parser("roles",
+                       help="classify each arbitration ID's cadence (periodic/sporadic/on-demand)")
+    s.add_argument("session")
+    s.set_defaults(func=_cmd_roles)
 
     s = sub.add_parser("perceive",
                        help="dashboard-video perception -> labels/ (needs video + perception.json)")

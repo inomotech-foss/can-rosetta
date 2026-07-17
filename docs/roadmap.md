@@ -29,7 +29,11 @@ recorded sessions; the learned foundation model is scaffolded, not yet trained.
 - [x] **EV-specific signals**: signed motion references + regen event + EV OBD
       SoC + battery-power/Coulomb priors identify pack current/voltage/SoC
       (`ev.py`). Still to do: per-OEM UDS DID catalogs, cell-level signals.
-- [ ] **Command-vs-status message classification** (passive causality analysis).
+- [x] **Command-vs-status message classification** (passive causality analysis):
+      `roles.py` classifies message cadence and flags command signals that *lead*
+      their effect. Strictly read-only (never transmits).
+- [ ] **EV charging** connector/mode/AC-metering: added; still to do — cross-session
+      de-collinearization of the charging-power group.
 
 ## Foundation model
 

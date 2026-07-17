@@ -106,6 +106,22 @@ The output is ranked hypotheses per reference: "GPS speed is best explained by
 confidence hypotheses are written to `labels/annotations.json` and can be
 exported as a **DBC** file.
 
+## Message roles and command identification
+
+Signals aren't only *quantities* — messages also have a *function*. We classify
+each arbitration ID's role from timing ([`roles.py`](../server/src/canrosetta/roles.py)):
+periodic (fixed cadence → status broadcast), sporadic (irregular → event/command),
+or on-demand (only present as a diagnostic response).
+
+We also identify **command** signals — the ones an ECU sends to make something
+happen — **passively, by causality**: a command's transition *precedes* its
+effect (the actuator response, a status change, or a physical reference) by a
+consistent positive lead. `command_candidates` cross-correlates each candidate
+against an effect over positive lags; a candidate that reliably *leads* the
+effect is a command hypothesis for it (e.g. a brake command leads the
+deceleration by the actuation lag). This recovers command *structure* from
+observation only — the tooling never transmits. See [SAFETY.md](../SAFETY.md).
+
 ## Stage 5 — The foundation model
 
 Stages 3–4 are a strong, fully-unsupervised **classical baseline** that already
