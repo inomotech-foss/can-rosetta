@@ -297,7 +297,7 @@ final class PhotoCapture: NSObject, AVCapturePhotoCaptureDelegate {
     }
 
     func photoOutput(_ output: AVCapturePhotoOutput,
-                     didFinishCaptureFor resolvedSettings: AVCaptureResolvedSettings,
+                     didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings,
                      error: Error?) {
         inFlightLock.lock()
         if inFlight > 0 { inFlight -= 1 }
