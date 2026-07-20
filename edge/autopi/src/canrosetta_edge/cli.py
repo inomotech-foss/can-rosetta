@@ -99,7 +99,6 @@ def cmd_simulate(args) -> int:
 
 def cmd_recon(args) -> int:
     """Reverse-engineering recon: detect speed, census plain CAN, scan OBD/UDS."""
-    import json
     import os
 
     from .recon import format_report, run_recon
