@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from .config import EdgeConfig
-from .obd import PIDS, SUPPORT_QUERY_PIDS, ObdClient, parse_supported_pids, pid_hex
+from .obd import SUPPORT_QUERY_PIDS, ObdClient, parse_supported_pids, pid_hex
 from .transport import (
     OBD_FUNCTIONAL_TX,
     OBD_FUNCTIONAL_TX_29,
