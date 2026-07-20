@@ -27,9 +27,26 @@ It will **never**, by design and by default configuration:
   service;
 - transmit on plain-CAN arbitration IDs used by vehicle ECUs.
 
-The brute-force sweep only enumerates the read services above. Any service that
-could change vehicle state is out of scope for this project and PRs adding them
-will be declined.
+The brute-force sweep only enumerates the read services above.
+
+## Intrusive mode — opt-in, off by default
+
+There is **one** capability that steps outside the read-only contract, and it is
+**disabled unless you explicitly ask for it** with `--allow-session` (config
+`allow_active_session: true`). It lives in its own module (`active.py`) behind its
+own guard so the read-only core can never reach it by accident. When enabled it
+may, on the ECUs that already answered read-only:
+
+- open an **extended diagnostic session** (`0x10 0x03`) — never the programming
+  session (`0x02`);
+- hold it with **TesterPresent** (`0x3E`);
+- re-issue the same **read** services (`0x22`/`0x19`) inside that session.
+
+Even in this mode it still **never** does SecurityAccess (`0x27` — a wrong key
+can lock an ECU out), writes, routines, I/O control, or resets. An extended
+session can suppress an ECU's normal messaging, so **only ever use it with the
+vehicle stationary.** Any service that could actuate the vehicle remains out of
+scope and PRs adding them will be declined.
 
 **Over-the-air updates are software-only.** The phone can update the AutoPi's edge
 app (`POST /api/update`), but it installs **only** `canrosetta-edge` from the

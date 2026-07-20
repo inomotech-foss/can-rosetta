@@ -18,10 +18,88 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterator, Optional
 
-# Standard OBD/UDS addressing (11-bit).
+# Standard OBD/UDS addressing (ISO 15765-4, 11-bit).
 OBD_FUNCTIONAL_TX = 0x7DF
 OBD_PHYSICAL_TX_BASE = 0x7E0  # 0x7E0 .. 0x7E7
 OBD_RESP_BASE = 0x7E8         # 0x7E8 .. 0x7EF
+
+# Extended (29-bit) diagnostic addressing (ISO 15765-4, "normal fixed").
+# Many manufacturers -- Mercedes-Benz among them -- gate diagnostics behind
+# 29-bit addressing on the OBD connector instead of (or in addition to) 11-bit.
+#   functional request : 0x18DB33F1
+#   physical request   : 0x18DA{ECU}F1   (F1 = external tester source address)
+#   physical response  : 0x18DAF1{ECU}
+OBD_FUNCTIONAL_TX_29 = 0x18DB33F1
+TESTER_SA = 0xF1
+
+
+def phys_req_29(ecu: int) -> int:
+    """29-bit physical request id addressed to target ECU ``ecu``."""
+    return 0x18DA0000 | ((ecu & 0xFF) << 8) | TESTER_SA
+
+
+def phys_resp_29(ecu: int) -> int:
+    """29-bit physical response id expected from target ECU ``ecu``."""
+    return 0x18DA0000 | (TESTER_SA << 8) | (ecu & 0xFF)
+
+
+def is_diag_response_id(arb_id: int, is_extended: bool) -> bool:
+    """True if ``arb_id`` is a legal ISO 15765-4 diagnostic *response* id.
+
+    This is the guard that keeps a busy broadcast bus from being mistaken for a
+    wall of ECU responses: only ids in the OBD 11-bit response window
+    (0x7E8..0x7EF) or the 29-bit tester-addressed window (0x18DAF1xx) count.
+    """
+    if is_extended:
+        return (arb_id & 0xFFFFFF00) == (0x18DA0000 | (TESTER_SA << 8))
+    return OBD_RESP_BASE <= arb_id <= OBD_RESP_BASE + 7
+
+
+def fc_target_for(responder_id: int, is_extended: bool) -> int:
+    """The id on which to emit an ISO-TP flow-control frame for ``responder_id``.
+
+    Flow control (clear-to-send) is the one frame a *reader* must transmit to
+    pull a multi-frame response; it is addressed to the responding ECU's request
+    id, not a write to the vehicle.
+    """
+    if is_extended:
+        # responder 0x18DAF1{ecu} -> request 0x18DA{ecu}F1
+        ecu = responder_id & 0xFF
+        return phys_req_29(ecu)
+    # 11-bit responder 0x7E8..0x7EF -> physical request 0x7E0..0x7E7
+    return responder_id - 8
+
+
+# The physical request id for a given responder is the same id we address flow
+# control to; this alias reads better where we mean "reply-to address".
+req_id_for_response = fc_target_for
+
+# SocketCAN flag bits needed to build kernel receive filters.
+_CAN_EFF_FLAG = 0x80000000
+_CAN_SFF_MASK = 0x000007FF
+_CAN_EFF_MASK = 0x1FFFFFFF
+
+
+def single_id_filter(rx_id: int, is_extended: bool):
+    """A kernel CAN filter tuple matching exactly one arbitration id.
+
+    Note: the EFF flag goes in the mask *only* for extended filters. Putting it
+    in an 11-bit mask makes the kernel match nothing (verified on hardware).
+    """
+    if is_extended:
+        return (rx_id | _CAN_EFF_FLAG, _CAN_EFF_MASK | _CAN_EFF_FLAG)
+    return (rx_id, _CAN_SFF_MASK)
+
+
+def diag_response_filter(is_extended: bool):
+    """A kernel CAN filter tuple matching the whole diagnostic response window.
+
+    11-bit: 0x7E8..0x7EF (mask 0x7F8). 29-bit: 0x18DAF1xx (mask 0x1FFFFF00).
+    """
+    if is_extended:
+        base = 0x18DA0000 | (TESTER_SA << 8)
+        return (base | _CAN_EFF_FLAG, 0x1FFFFF00 | _CAN_EFF_FLAG)
+    return (OBD_RESP_BASE, 0x7F8)
 
 
 @dataclass
@@ -197,6 +275,173 @@ class SocketCanTransport(Transport):
                 # must emit to receive multi-frame reads; it is not a write to
                 # the vehicle, only ISO-TP handshaking.
                 self.send_frame(rx_id - 8, b"\x30\x00\x00")
+            elif pci == 0x2:  # consecutive frame
+                buf.extend(d[1:8])
+                if len(buf) >= expected:
+                    return bytes(buf[:expected])
+        return None
+
+
+# --------------------------------------------------------------------------- #
+# Native SocketCAN (stdlib only -- no python-can)
+# --------------------------------------------------------------------------- #
+class NativeSocketCanTransport(Transport):
+    """SocketCAN transport built on the standard library only.
+
+    Backed by :class:`canrosetta_edge.canbus.NativeCanBus`, so it runs on a
+    stock AutoPi with no ``python-can`` / no ``pip`` install. Feature-parity with
+    :class:`SocketCanTransport` for our read-only needs, plus:
+
+    * correct ISO-TP flow-control addressing for both 11-bit and 29-bit, and
+    * :meth:`request_all`, which collects responses from *every* ECU that
+      answers a functional (broadcast) request in one shot.
+    """
+
+    def __init__(self, channel: str = "can0", bitrate: int = 500_000,
+                 configure: bool = False):
+        self.channel = channel
+        self.bitrate = bitrate
+        self.configure = configure  # (re)configure the controller on open()?
+        self._bus = None
+
+    def open(self) -> "NativeSocketCanTransport":
+        from .canbus import NativeCanBus, configure_bitrate, interface_is_up
+
+        if self.configure and not interface_is_up(self.channel):
+            configure_bitrate(self.channel, self.bitrate, listen_only=False)
+        self._bus = NativeCanBus(self.channel).open()
+        return self
+
+    def close(self) -> None:
+        if self._bus is not None:
+            self._bus.close()
+            self._bus = None
+
+    def _bus_or_raise(self):
+        if self._bus is None:
+            raise RuntimeError("NativeSocketCanTransport not open(); call open() first")
+        return self._bus
+
+    def send_frame(self, arb_id: int, data: bytes, is_extended: bool = False) -> None:
+        self._bus_or_raise().send(arb_id, bytes(data),
+                                  is_extended or arb_id > 0x7FF)
+
+    def recv_frames(self, timeout: float) -> Iterator[Frame]:
+        bus = self._bus_or_raise()
+        for fr in bus.recv_until(time.monotonic() + timeout):
+            if fr.is_error:
+                continue
+            yield Frame(
+                arb_id=fr.arb_id, data=fr.data, is_extended=fr.is_extended,
+                channel=self.channel, direction="rx",
+                t_mono=fr.t_mono, t_utc=fr.t_utc,
+            )
+
+    # ISO 15765-4 requires diagnostic CAN frames to be a full 8 data bytes,
+    # padded; many gateways (Mercedes among them) silently drop short frames.
+    PADDING = 0x00
+
+    def _send_single_frame(self, tx_id: int, payload: bytes, is_extended: bool) -> None:
+        if len(payload) > 7:
+            raise NotImplementedError("multi-frame ISO-TP TX not supported "
+                                      "(all read requests fit one frame)")
+        sf = bytes([len(payload)]) + payload
+        sf = sf.ljust(8, bytes([self.PADDING]))  # pad to DLC=8
+        self._bus_or_raise().send(tx_id, sf, is_extended)
+
+    def _send_flow_control(self, fc_id: int, is_extended: bool) -> None:
+        # Clear-to-send (CTS), padded to 8 bytes like any diagnostic frame.
+        fc = b"\x30\x00\x00".ljust(8, bytes([self.PADDING]))
+        self._bus_or_raise().send(fc_id, fc, is_extended)
+
+    def request(self, tx_id, rx_id, payload, timeout=1.0):
+        """Single request; reassemble the ISO-TP response from ``rx_id``.
+
+        Installs a kernel filter for ``rx_id`` for the duration of the exchange
+        so the response is not lost in the flood of broadcast traffic.
+        """
+        is_ext = tx_id > 0x7FF or rx_id > 0x7FF
+        bus = self._bus_or_raise()
+        bus.set_filters([single_id_filter(rx_id, is_ext)])
+        try:
+            self._send_single_frame(tx_id, bytes(payload), is_ext)
+            return self._recv_isotp(rx_id, is_ext, timeout)
+        finally:
+            bus.receive_all()
+
+    def request_all(self, tx_id, payload, timeout=1.0, expect_ids=None):
+        """Broadcast a functional request; collect *all* ECUs' responses.
+
+        Returns a list of ``(responder_arb_id, pdu)``. ``expect_ids`` optionally
+        restricts which arbitration ids count as a response (e.g. the OBD
+        response range); by default any id whose first frame is a valid ISO-TP
+        SF/FF is accepted.
+        """
+        is_ext = tx_id > 0x7FF
+        bus = self._bus_or_raise()
+        # Filter to the diagnostic response window so broadcast traffic cannot
+        # crowd out ECU responses on a busy bus.
+        bus.set_filters([diag_response_filter(is_ext)])
+        try:
+            return self._request_all_inner(bus, tx_id, payload, is_ext,
+                                           timeout, expect_ids)
+        finally:
+            bus.receive_all()
+
+    def _request_all_inner(self, bus, tx_id, payload, is_ext, timeout, expect_ids):
+        self._send_single_frame(tx_id, bytes(payload), is_ext)
+        deadline = time.monotonic() + timeout
+        partial = {}     # rx_id -> (expected_len, bytearray)
+        done = {}        # rx_id -> bytes
+        for fr in bus.recv_until(deadline):
+            if fr.is_error or fr.arb_id == tx_id:
+                continue
+            # Only accept legal diagnostic response ids -- otherwise the constant
+            # broadcast traffic on a live bus is misread as ECU responses.
+            if expect_ids is not None:
+                if fr.arb_id not in expect_ids:
+                    continue
+            elif not is_diag_response_id(fr.arb_id, fr.is_extended):
+                continue
+            rx_id, d = fr.arb_id, fr.data
+            if not d:
+                continue
+            pci = d[0] >> 4
+            if pci == 0x0:  # single frame
+                n = d[0] & 0x0F
+                done[rx_id] = bytes(d[1:1 + n])
+            elif pci == 0x1:  # first frame -> must send flow control
+                expected = ((d[0] & 0x0F) << 8) | d[1]
+                partial[rx_id] = (expected, bytearray(d[2:8]))
+                self._send_flow_control(fc_target_for(rx_id, fr.is_extended),
+                                        fr.is_extended)
+            elif pci == 0x2 and rx_id in partial:  # consecutive frame
+                expected, buf = partial[rx_id]
+                buf.extend(d[1:8])
+                if len(buf) >= expected:
+                    done[rx_id] = bytes(buf[:expected])
+                    del partial[rx_id]
+        return list(done.items())
+
+    def _recv_isotp(self, rx_id, is_extended, timeout) -> Optional[bytes]:
+        bus = self._bus_or_raise()
+        deadline = time.monotonic() + timeout
+        expected = 0
+        buf = bytearray()
+        for fr in bus.recv_until(deadline):
+            if fr.is_error or fr.arb_id != rx_id:
+                continue
+            d = fr.data
+            if not d:
+                continue
+            pci = d[0] >> 4
+            if pci == 0x0:  # single frame
+                return bytes(d[1:1 + (d[0] & 0x0F)])
+            if pci == 0x1:  # first frame
+                expected = ((d[0] & 0x0F) << 8) | d[1]
+                buf.extend(d[2:8])
+                self._send_flow_control(fc_target_for(rx_id, fr.is_extended),
+                                        fr.is_extended)
             elif pci == 0x2:  # consecutive frame
                 buf.extend(d[1:8])
                 if len(buf) >= expected:

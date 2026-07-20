@@ -53,17 +53,27 @@ def _B(d: bytes) -> int:
 PIDS: Dict[int, Pid] = {
     0x04: Pid(0x04, "engine_load", 1, "%", lambda d: _A(d) * 100.0 / 255.0),
     0x05: Pid(0x05, "coolant_temp", 1, "degC", lambda d: _A(d) - 40.0),
+    0x0A: Pid(0x0A, "fuel_pressure", 1, "kPa", lambda d: _A(d) * 3.0),
+    0x0B: Pid(0x0B, "intake_manifold_pressure", 1, "kPa", lambda d: float(_A(d))),
     0x0C: Pid(0x0C, "engine_rpm", 2, "rpm", lambda d: (256 * _A(d) + _B(d)) / 4.0),
     0x0D: Pid(0x0D, "vehicle_speed", 1, "km/h", lambda d: float(_A(d))),
+    0x0E: Pid(0x0E, "timing_advance", 1, "deg", lambda d: _A(d) / 2.0 - 64.0),
     0x0F: Pid(0x0F, "intake_temp", 1, "degC", lambda d: _A(d) - 40.0),
     0x10: Pid(0x10, "maf", 2, "g/s", lambda d: (256 * _A(d) + _B(d)) / 100.0),
     0x11: Pid(0x11, "throttle_pos", 1, "%", lambda d: _A(d) * 100.0 / 255.0),
+    0x1F: Pid(0x1F, "run_time_since_start", 2, "s", lambda d: float(256 * _A(d) + _B(d))),
+    0x21: Pid(0x21, "distance_with_mil", 2, "km", lambda d: float(256 * _A(d) + _B(d))),
     0x2F: Pid(0x2F, "fuel_level", 1, "%", lambda d: _A(d) * 100.0 / 255.0),
+    0x31: Pid(0x31, "distance_since_clear", 2, "km", lambda d: float(256 * _A(d) + _B(d))),
+    0x33: Pid(0x33, "barometric_pressure", 1, "kPa", lambda d: float(_A(d))),
     0x42: Pid(0x42, "control_module_voltage", 2, "V",
               lambda d: (256 * _A(d) + _B(d)) / 1000.0),
+    0x45: Pid(0x45, "rel_throttle_pos", 1, "%", lambda d: _A(d) * 100.0 / 255.0),
     0x46: Pid(0x46, "ambient_temp", 1, "degC", lambda d: _A(d) - 40.0),
+    0x5C: Pid(0x5C, "engine_oil_temp", 1, "degC", lambda d: _A(d) - 40.0),
+    0x5E: Pid(0x5E, "engine_fuel_rate", 2, "L/h", lambda d: (256 * _A(d) + _B(d)) / 20.0),
     # EV / hybrid: standardized SoC-style PID. Most EV battery detail is
-    # manufacturer-specific UDS (read via 0x22), but this one is standard.
+    # manufacturer-specific UDS (read via 0x22), but these are standard.
     0x5B: Pid(0x5B, "hybrid_battery_remaining", 1, "%", lambda d: _A(d) * 100.0 / 255.0),
 }
 

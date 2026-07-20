@@ -13,6 +13,7 @@ from .config import EdgeConfig
 from .transport import (
     ElmTransport,
     Frame,
+    NativeSocketCanTransport,
     SimulatedTransport,
     SocketCanTransport,
     Transport,
@@ -29,5 +30,6 @@ __all__ = [
     "Frame",
     "SimulatedTransport",
     "SocketCanTransport",
+    "NativeSocketCanTransport",
     "ElmTransport",
 ]

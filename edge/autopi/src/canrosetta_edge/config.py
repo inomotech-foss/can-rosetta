@@ -16,9 +16,19 @@ class EdgeConfig:
     channel: str = "can0"
     bitrate: int = 500_000
     transport: str = "simulated"          # simulated | socketcan | elm
+    socketcan_backend: str = "auto"       # auto | python-can | native (stdlib)
     elm_port: str = "/dev/ttyUSB0"
     elm_baudrate: int = 115200
     request_timeout_s: float = 1.0
+
+    # --- bus auto-detection (recon) ---
+    bitrate_autodetect: bool = True       # probe candidate bitrates when unknown
+    interfaces: str = "auto"              # "auto" (all can*) or comma list e.g. "can0,can1"
+    detect_window_s: float = 2.0          # passive listen window per candidate bitrate
+    diag_addressing: str = "both"         # 11bit | 29bit | both -- which OBD/UDS addressing to try
+
+    # --- intrusive probing (OFF by default; see SAFETY.md, active.py) ---
+    allow_active_session: bool = False    # allow UDS session control (0x10) + TesterPresent
 
     # --- output ---
     output_dir: str = "."                 # session directory root
