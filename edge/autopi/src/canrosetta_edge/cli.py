@@ -119,6 +119,8 @@ def cmd_recon(args) -> int:
         config.diag_addressing = args.diag_addressing
     if args.census_s is not None:
         config.plain_can_census_s = args.census_s
+    if args.allow_session:
+        config.allow_active_session = True
 
     mode = "slow" if args.deep else "fast"
     result = run_recon(config, mode=mode)
@@ -203,6 +205,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="which OBD/UDS addressing to probe (default: both)")
     sp.add_argument("--deep", action="store_true",
                     help="slow mode: brute-force OBD PIDs + UDS DIDs (throttled)")
+    sp.add_argument("--allow-session", dest="allow_session", action="store_true",
+                    help="INTRUSIVE: open a UDS extended session (0x10) on live "
+                         "ECUs. Stationary vehicle only — see SAFETY.md.")
     sp.add_argument("--census-s", dest="census_s", type=float,
                     help="passive plain-CAN census window in seconds")
     sp.add_argument("--top", type=int, default=40,

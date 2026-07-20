@@ -107,6 +107,9 @@ the fastest way to characterise a vehicle you know nothing about:
 3. **Which OBD/UDS signals are readable?** — the catalog scan over **both**
    11-bit and 29-bit addressing, enumerating every responding ECU.
 
+It also reads **stored DTCs** (`0x19`, read-only) from each responding ECU and
+decodes them to SAE codes.
+
 ```bash
 # via the CLI (writes can/discovery.json under --output-dir)
 canrosetta-edge recon --output-dir ./session          # auto-detect bus + speed
@@ -116,6 +119,16 @@ canrosetta-edge recon --deep                          # + brute-force PIDs/DIDs 
 # or the zero-install standalone script (nothing but Python 3 + SocketCAN)
 python3 reverse_engineer.py                            # auto-detect, fast scan
 python3 reverse_engineer.py --deep --json out.json
+```
+
+**Intrusive mode (opt-in, stationary vehicle only).** `--allow-session` steps
+outside the read-only contract to open a UDS **extended session** (`0x10 0x03`,
+held with TesterPresent) on the ECUs that answered, then re-reads DIDs to see
+what the session unlocks. It never does SecurityAccess/writes/routines/resets.
+See [SAFETY.md](../../SAFETY.md).
+
+```bash
+python3 reverse_engineer.py --allow-session           # extended-session probe
 ```
 
 Bitrate probing reconfigures the controller via `ip link`, which needs root

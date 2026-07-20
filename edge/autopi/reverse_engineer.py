@@ -50,6 +50,9 @@ def main(argv=None) -> int:
                     default="both", help="OBD/UDS addressing to probe (default: both)")
     ap.add_argument("--deep", action="store_true",
                     help="brute-force OBD PIDs 0x00-0xFF and UDS DIDs (throttled)")
+    ap.add_argument("--allow-session", action="store_true",
+                    help="INTRUSIVE: open a UDS extended session (0x10) on live "
+                         "ECUs to see what it unlocks. Stationary vehicle only.")
     ap.add_argument("--census-s", type=float, default=15.0,
                     help="passive plain-CAN census window in seconds (default: 15)")
     ap.add_argument("--top", type=int, default=60,
@@ -70,7 +73,8 @@ def main(argv=None) -> int:
     if args.no_autodetect:
         config.bitrate_autodetect = False
 
-    result = run_recon(config, mode="slow" if args.deep else "fast")
+    result = run_recon(config, mode="slow" if args.deep else "fast",
+                       allow_session=args.allow_session)
     print(format_report(result, top_n=args.top))
 
     if args.json:

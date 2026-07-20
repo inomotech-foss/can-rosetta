@@ -143,6 +143,28 @@ def test_census_ignores_direction_and_previews_ascii():
     assert "sample_ascii" in ids["0x003"]
 
 
+def test_decode_dtc():
+    from canrosetta_edge.uds import decode_dtc
+    assert decode_dtc(0x012345) == "P0123"
+    assert decode_dtc(0xC12300).startswith("U")  # top 2 bits = 11 -> U
+    assert decode_dtc(0x812300).startswith("B")  # 10 -> B
+
+
+def test_active_session_is_guarded():
+    import pytest
+    from canrosetta_edge.active import (
+        ActiveSession, assert_active_allowed, nrc_name, probe_extended_session,
+    )
+    with pytest.raises(PermissionError):
+        assert_active_allowed(False)
+    with pytest.raises(PermissionError):
+        ActiveSession(FakeMultiBus(), 0x7E0, 0x7E8, allow=False)
+    with pytest.raises(PermissionError):
+        probe_extended_session(FakeMultiBus(), [(0x7E0, 0x7E8)], allow=False)
+    assert "mfr-specific" in nrc_name(0xF1)
+    assert assert_active_allowed(True) is None  # allowed: no raise
+
+
 def test_format_report_smoke():
     result = discover(FakeMultiBus(), mode="fast", config=EdgeConfig(diag_addressing="both"))
     result["bus"] = {"interface": "can0", "bitrate": 500000,

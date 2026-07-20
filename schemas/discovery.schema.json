@@ -65,6 +65,15 @@
         }
       }
     },
+    "active_probe": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Results of the opt-in intrusive extended-session probe (--allow-session).",
+      "properties": {
+        "attempted": { "type": "boolean" },
+        "ecus": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+      }
+    },
     "plain_can": {
       "type": "object",
       "additionalProperties": false,

@@ -64,9 +64,12 @@ def _open_transport(scan: canbus.BusScan, config: EdgeConfig) -> NativeSocketCan
                                     bitrate=scan.bitrate or config.bitrate).open()
 
 
-def run_recon(config: Optional[EdgeConfig] = None, mode: str = "fast") -> dict:
+def run_recon(config: Optional[EdgeConfig] = None, mode: str = "fast",
+              allow_session: Optional[bool] = None) -> dict:
     """Run the full recon and return the discovery dict (with a ``bus`` block)."""
     config = config or EdgeConfig()
+    if allow_session is not None:
+        config.allow_active_session = allow_session
     scan = detect_bus(config)
 
     bus_info = {
@@ -101,9 +104,33 @@ def run_recon(config: Optional[EdgeConfig] = None, mode: str = "fast") -> dict:
         # mode where discover() would otherwise skip it.
         if "plain_can" not in result:
             result["plain_can"] = plain_can_census(transport, config.plain_can_census_s)
+        # Opt-in intrusive step: try to open an extended session on the ECUs that
+        # answered read-only, and see what it unlocks. OFF unless authorised.
+        if config.allow_active_session:
+            result["active_probe"] = _run_active_probe(transport, result)
     finally:
         transport.close()
     return result
+
+
+def _run_active_probe(transport, result: dict) -> dict:
+    """Attempt extended sessions on the live UDS ECUs (intrusive; opt-in)."""
+    from .active import probe_extended_session
+
+    ecus = []
+    for e in result.get("uds", {}).get("ecus", []):
+        try:
+            tx = int(e["tx_id"], 16)
+            rx = int(e["rx_id"], 16)
+        except (KeyError, ValueError):
+            continue
+        ecus.append((tx, rx))
+    if not ecus:
+        return {"attempted": False, "reason": "no live UDS ECUs to probe"}
+    # DIDs worth retrying once a session is open (manufacturer/live-data ranges).
+    dids = [0xF190, 0xF191, 0xF192, 0xF194, 0xF1A2] + list(range(0x0100, 0x0110))
+    ecu_results = probe_extended_session(transport, ecus, allow=True, dids=dids)
+    return {"attempted": True, "ecus": ecu_results}
 
 
 # --------------------------------------------------------------------------- #
@@ -162,9 +189,30 @@ def format_report(result: dict, top_n: int = 40) -> str:
         for d in e.get("dids", []):
             v = values.get(d, "")
             add(f"    {d}  {v}")
+        if e.get("dtc_count"):
+            codes = ", ".join(d["code"] for d in e.get("dtcs", [])[:12])
+            more = "" if e["dtc_count"] <= 12 else f", +{e['dtc_count'] - 12} more"
+            add(f"    DTCs ({e['dtc_count']}): {codes}{more}")
     if not ecus:
         add("    (no UDS responders on this bus)")
     add("")
+
+    # Intrusive session probe (only present when --allow-session was used)
+    ap = result.get("active_probe")
+    if ap:
+        add("Session    : extended-session probe (INTRUSIVE)")
+        if not ap.get("attempted"):
+            add(f"    {ap.get('reason', 'not attempted')}")
+        for e in ap.get("ecus", []):
+            s = e.get("session", {})
+            if s.get("opened"):
+                unlocked = e.get("unlocked_dids", {})
+                add(f"    {e.get('rx_id')}: OPENED — {len(unlocked)} extra DID(s): "
+                    f"{', '.join(unlocked) or 'none'}")
+            else:
+                detail = s.get("nrc") or s.get("result", "?")
+                add(f"    {e.get('rx_id')}: refused ({detail})")
+        add("")
 
     # Plain CAN
     arb = result.get("plain_can", {}).get("arb_ids", [])

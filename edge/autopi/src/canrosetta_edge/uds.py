@@ -133,3 +133,27 @@ class UdsClient:
             if self.read_data_by_identifier(did) is not None:
                 responding.append(did)
         return responding
+
+    def read_dtcs(self, status_mask: int = 0xFF):
+        """UDS 0x19 sub 0x02 (reportDTCByStatusMask). Read-only, default session.
+
+        Returns a list of ``(dtc, status)`` tuples (``dtc`` a 3-byte int), or
+        ``None`` on no/negative response.
+        """
+        resp = self.send_request(0x19, bytes([0x02, status_mask & 0xFF]))
+        if resp is None or len(resp) < 3 or resp[1] != 0x02:
+            return None
+        body = resp[3:]  # after 59 02 <statusAvailabilityMask>
+        out = []
+        for i in range(0, len(body) - 3, 4):
+            dtc = (body[i] << 16) | (body[i + 1] << 8) | body[i + 2]
+            out.append((dtc, body[i + 3]))
+        return out
+
+
+def decode_dtc(dtc: int) -> str:
+    """Render a 3-byte UDS DTC as the SAE J2012 code (e.g. 0x012345 -> 'P0123')."""
+    b0 = (dtc >> 16) & 0xFF
+    b1 = (dtc >> 8) & 0xFF
+    letter = "PCBU"[(b0 >> 6) & 0x3]
+    return f"{letter}{(b0 >> 4) & 0x3}{b0 & 0xF:X}{b1:02X}"

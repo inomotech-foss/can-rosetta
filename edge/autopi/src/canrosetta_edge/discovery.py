@@ -45,6 +45,7 @@ from .uds import (
     DID_CATALOG,
     STANDARD_ECUS,
     UdsClient,
+    decode_dtc,
     did_hex,
 )
 
@@ -295,17 +296,24 @@ def _discover_uds(transport, config: EdgeConfig, profiles: List[Addressing],
                         if v is not None:
                             values[did] = v
                         time.sleep(config.brute_force_throttle_s)
-                if not values:
-                    continue
-                dids = sorted(values)
-                ecus.append({
+                # DTCs (0x19) are read-only and permitted in the default session.
+                dtcs = c.read_dtcs(0xFF)
+                entry = {
                     "addressing": prof.name,
                     "tx_id": _hexid(req_id, prof.is_extended),
                     "rx_id": _hexid(rid, prof.is_extended),
-                    "dids": [did_hex(d) for d in dids],
-                    "values": {did_hex(d): _decode_did_value(values[d]) for d in dids},
-                })
-                all_responding.update(dids)
+                    "dids": [did_hex(d) for d in sorted(values)],
+                    "values": {did_hex(d): _decode_did_value(values[d])
+                               for d in sorted(values)},
+                }
+                if dtcs:
+                    entry["dtc_count"] = len(dtcs)
+                    entry["dtcs"] = [{"code": decode_dtc(d), "raw": f"0x{d:06X}",
+                                      "status": f"0x{s:02X}"} for d, s in dtcs]
+                if not values and not dtcs:
+                    continue
+                ecus.append(entry)
+                all_responding.update(values)
     else:
         # Legacy single-responder path (SimulatedTransport / ELM), 11-bit only.
         for tx_id, rx_id in STANDARD_ECUS:
