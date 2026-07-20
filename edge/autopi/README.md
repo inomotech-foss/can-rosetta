@@ -75,14 +75,71 @@ line-appended `can/frames.jsonl` with identical per-row semantics.
 
 ## Transports
 
-| Transport            | Backend            | Use |
-|----------------------|--------------------|-----|
-| `SocketCanTransport` | `python-can`       | AutoPi / any Linux SocketCAN device |
-| `ElmTransport`       | `pyserial`         | ELM327 / STN serial dongles (best-effort sniffing) |
-| `SimulatedTransport` | none               | tests + `simulate` demo; a fake vehicle bus |
+| Transport                  | Backend            | Use |
+|----------------------------|--------------------|-----|
+| `NativeSocketCanTransport` | **stdlib only**    | AutoPi / any Linux SocketCAN device — **no `pip` needed** |
+| `SocketCanTransport`       | `python-can`       | AutoPi / any Linux SocketCAN device |
+| `ElmTransport`             | `pyserial`         | ELM327 / STN serial dongles (best-effort sniffing) |
+| `SimulatedTransport`       | none               | tests + `simulate` demo; a fake vehicle bus |
 
 All implement one interface (`transport.py`): `send_frame`, `recv_frames`, and
 an ISO-TP style `request(tx_id, rx_id, payload)` for OBD/UDS request-response.
+The native and python-can SocketCAN transports also expose `request_all()`,
+which broadcasts a **functional** request and collects *every* ECU's response in
+one shot (used for multi-ECU discovery), and handle both 11-bit and 29-bit
+(`0x18DAxxF1`) diagnostic addressing.
+
+For `--transport socketcan`, the backend is picked by
+`config.socketcan_backend` (`auto` | `python-can` | `native`). The default
+`auto` uses `python-can` when it is importable and otherwise falls back to the
+**native stdlib** transport — so the edge runs on a stock AutoPi that has no
+`pip`.
+
+## Reverse-engineering recon (first contact with an unknown bus)
+
+The `recon` flow answers the three first-contact questions in one pass and is
+the fastest way to characterise a vehicle you know nothing about:
+
+1. **What is the CAN speed?** — passive, listen-only bitrate detection across the
+   AutoPi's CAN interfaces (never transmits while probing).
+2. **What plain-CAN messages exist?** — a passive census of every arbitration id
+   (period, width, changing bytes, ASCII preview).
+3. **Which OBD/UDS signals are readable?** — the catalog scan over **both**
+   11-bit and 29-bit addressing, enumerating every responding ECU.
+
+```bash
+# via the CLI (writes can/discovery.json under --output-dir)
+canrosetta-edge recon --output-dir ./session          # auto-detect bus + speed
+canrosetta-edge recon --interface can0 --bitrate 500000
+canrosetta-edge recon --deep                          # + brute-force PIDs/DIDs (throttled)
+
+# or the zero-install standalone script (nothing but Python 3 + SocketCAN)
+python3 reverse_engineer.py                            # auto-detect, fast scan
+python3 reverse_engineer.py --deep --json out.json
+```
+
+Bitrate probing reconfigures the controller via `ip link`, which needs root
+(`sudo`); an interface that is already up is sampled **as-is** and never touched.
+An EV that answers no OBD/UDS is normal — the value is then in the plain-CAN
+census, correlated on the server against the phone/IMU/GPS reference series.
+
+Discovery probes **functional broadcast and a physical ECU sweep**, because some
+vehicles (Mercedes-Benz included) answer diagnostics *only* when addressed
+physically (`0x7E0..0x7E7` / `0x18DA{ECU}F1`) and ignore the functional request.
+All diagnostic frames are padded to 8 bytes (ISO 15765-4) — gateways commonly
+drop short frames.
+
+### Why a hand-rolled ISO-TP instead of `udsoncan`/`can-isotp`?
+
+The established stack (`python-can` + `can-isotp` + `udsoncan`, the `[uds]`
+extra) is the more battle-tested choice and is **preferred when it is
+installed**. But the edge's baseline target is a locked-down AutoPi where `pip`
+is unavailable and the kernel has no `can_isotp` module, so it must also run with
+**nothing but the standard library** — hence `NativeSocketCanTransport` and its
+small ISO-TP implementation (single-frame requests + multi-frame reassembly,
+which covers every read service we issue). Its output has been cross-checked
+against `udsoncan` on real hardware (identical VIN read). Install the `[uds]`
+extra to use the established stack where you can.
 
 ## Usage
 

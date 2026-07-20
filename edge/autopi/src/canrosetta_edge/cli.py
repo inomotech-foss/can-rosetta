@@ -97,6 +97,43 @@ def cmd_simulate(args) -> int:
     return 0 if eng.error is None else 1
 
 
+def cmd_recon(args) -> int:
+    """Reverse-engineering recon: detect speed, census plain CAN, scan OBD/UDS."""
+    import json
+    import os
+
+    from .recon import format_report, run_recon
+    from .session import SessionLayout, new_session_id, write_discovery
+
+    config = _load_config(args)
+    config.transport = "socketcan"
+    if args.interface:
+        config.channel = args.interface
+        config.interfaces = args.interface
+    if args.bitrate and args.bitrate != "auto":
+        config.bitrate = int(args.bitrate)
+        config.bitrate_autodetect = False
+    if args.no_autodetect:
+        config.bitrate_autodetect = False
+    if args.diag_addressing:
+        config.diag_addressing = args.diag_addressing
+    if args.census_s is not None:
+        config.plain_can_census_s = args.census_s
+
+    mode = "slow" if args.deep else "fast"
+    result = run_recon(config, mode=mode)
+
+    if not args.no_report:
+        print(format_report(result, top_n=args.top))
+
+    # Persist a schema-valid discovery.json (+ raw dump) under a session dir.
+    session_id = getattr(args, "session_id", None) or new_session_id()
+    layout = SessionLayout(os.path.join(config.output_dir, session_id), session_id).ensure()
+    write_discovery(layout.discovery_path, result)
+    print(f"\n[recon] discovery written to {layout.discovery_path}", file=sys.stderr)
+    return 0
+
+
 def cmd_serve(args) -> int:
     from .control import serve  # lazy: needs aiohttp
     from .pairing import format_pairing
@@ -151,6 +188,28 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--mode", choices=["fast", "slow"], default="fast")
     sp.add_argument("--duration", type=float)
     sp.set_defaults(func=cmd_simulate)
+
+    sp = sub.add_parser("recon",
+                        help="reverse-engineering recon: detect CAN speed, census "
+                             "plain CAN, scan readable OBD/UDS signals")
+    common(sp)
+    sp.add_argument("--interface", help="CAN interface (default: auto-detect all can*)")
+    sp.add_argument("--bitrate", default="auto",
+                    help="'auto' (default) or a fixed bitrate, e.g. 500000")
+    sp.add_argument("--no-autodetect", action="store_true",
+                    help="trust --interface/--bitrate, skip bitrate probing")
+    sp.add_argument("--diag-addressing", dest="diag_addressing",
+                    choices=["11bit", "29bit", "both"],
+                    help="which OBD/UDS addressing to probe (default: both)")
+    sp.add_argument("--deep", action="store_true",
+                    help="slow mode: brute-force OBD PIDs + UDS DIDs (throttled)")
+    sp.add_argument("--census-s", dest="census_s", type=float,
+                    help="passive plain-CAN census window in seconds")
+    sp.add_argument("--top", type=int, default=40,
+                    help="how many plain-CAN ids to show in the report")
+    sp.add_argument("--no-report", action="store_true",
+                    help="suppress the text report (still writes discovery.json)")
+    sp.set_defaults(func=cmd_recon)
 
     sp = sub.add_parser("serve", help="run the control server (phone steers the device)")
     common(sp)

@@ -7,11 +7,24 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "bus": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "interface": { "type": "string" },
+        "bitrate": { "type": ["integer", "null"] },
+        "bitrate_source": { "type": "string" },
+        "frames_sampled": { "type": "integer" },
+        "unique_ids": { "type": "integer" }
+      }
+    },
     "obd": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "supported_pids": { "type": "array", "items": { "type": "string" } },
+        "responders": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "addressing_tried": { "type": "array", "items": { "type": "string" } },
         "samples": {
           "type": "array",
           "items": {
@@ -36,6 +49,7 @@
       "additionalProperties": false,
       "properties": {
         "responding_dids": { "type": "array", "items": { "type": "string" } },
+        "addressing_tried": { "type": "array", "items": { "type": "string" } },
         "ecus": {
           "type": "array",
           "items": {

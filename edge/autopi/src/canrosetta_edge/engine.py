@@ -35,7 +35,13 @@ from .session import (
 from .session import SW_VERSION
 from .power import make_wake_lock
 from .sensors import SensorLogger, make_sensor_source
-from .transport import ElmTransport, SimulatedTransport, SocketCanTransport, Transport
+from .transport import (
+    ElmTransport,
+    NativeSocketCanTransport,
+    SimulatedTransport,
+    SocketCanTransport,
+    Transport,
+)
 
 # engine states
 IDLE = "idle"
@@ -44,13 +50,36 @@ LOGGING = "logging"
 ERROR = "error"
 
 
+def _python_can_available() -> bool:
+    try:
+        import can  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
 def make_transport(config: EdgeConfig, override: Optional[str] = None) -> Transport:
-    """Construct the configured transport (shared by the CLI and the engine)."""
+    """Construct the configured transport (shared by the CLI and the engine).
+
+    For ``socketcan`` the backend is chosen by ``config.socketcan_backend``:
+    ``python-can`` uses the library; ``native`` uses the stdlib-only
+    :class:`NativeSocketCanTransport`; ``auto`` (default) prefers ``python-can``
+    when importable and otherwise falls back to native -- so the edge runs on a
+    stock AutoPi without ``pip``.
+    """
     kind = override or config.transport
     if kind == "simulated":
         return SimulatedTransport(channel=config.channel)
     if kind == "socketcan":
-        return SocketCanTransport(channel=config.channel, bitrate=config.bitrate)
+        backend = config.socketcan_backend
+        if backend == "python-can":
+            return SocketCanTransport(channel=config.channel, bitrate=config.bitrate)
+        if backend == "native":
+            return NativeSocketCanTransport(channel=config.channel, bitrate=config.bitrate)
+        # auto
+        if _python_can_available():
+            return SocketCanTransport(channel=config.channel, bitrate=config.bitrate)
+        return NativeSocketCanTransport(channel=config.channel, bitrate=config.bitrate)
     if kind == "elm":
         return ElmTransport(port=config.elm_port, baudrate=config.elm_baudrate,
                             channel=config.channel)
