@@ -1,6 +1,7 @@
 package com.inomotech.canrosetta.companion.remote
 
 import android.content.Context
+import android.net.Network
 import android.util.Log
 import com.inomotech.canrosetta.companion.AppInfo
 import com.inomotech.canrosetta.companion.recording.RecordingController
@@ -13,8 +14,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.cancellation.CancellationException
 
 enum class ConnState { IDLE, CONNECTING, CONNECTED, FAILED }
@@ -37,8 +40,9 @@ data class EdgeUiState(
 )
 
 /**
- * Owns the phone side of the control channel: host/token/mode (persisted in
- * SharedPreferences), the measured edge/companion clock offset, the live edge
+ * Owns the phone side of the control channel: host/token/mode and the AutoPi's
+ * AP credentials (persisted in SharedPreferences), the [WifiJoiner] that puts
+ * the phone on that AP, the measured edge/companion clock offset, the live edge
  * status, and the coordinated start/stop that drives [RecordingController] in
  * lock-step with the AutoPi.
  *
@@ -48,6 +52,7 @@ data class EdgeUiState(
  */
 class EdgeConnection(context: Context) {
 
+    private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences("edge", Context.MODE_PRIVATE)
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private val clock = Clock()
@@ -55,6 +60,48 @@ class EdgeConnection(context: Context) {
     val host = MutableStateFlow(prefs.getString(KEY_HOST, DEFAULT_HOST) ?: DEFAULT_HOST)
     val token = MutableStateFlow(prefs.getString(KEY_TOKEN, "") ?: "")
     val mode = MutableStateFlow(EdgeMode.fromWire(prefs.getString(KEY_MODE, "fast")))
+
+    // AP credentials from the v2 pairing QR ("wifi" key). Empty when the payload
+    // omitted them (dev boxes) — every Wi-Fi feature then degrades to today's
+    // manual flow.
+    val wifiSsid = MutableStateFlow(prefs.getString(KEY_WIFI_SSID, "") ?: "")
+    val wifiPsk = MutableStateFlow(prefs.getString(KEY_WIFI_PSK, "") ?: "")
+
+    // Lazy so construction (and its ConnectivityManager lookup) is deferred to
+    // the first path that actually needs the joiner or its peer network. The
+    // collector started alongside it lives for the whole session: a join
+    // approved only after [joinAndPair]'s wait timed out, or an AP rejoin later
+    // in the drive, would otherwise leave the app JOINED but never paired. One
+    // handshake per transition to JOINED; CONNECTING/busy/in-flight all mean a
+    // handshake is already running, so don't start a duplicate.
+    private val joiner by lazy {
+        WifiJoiner(appContext).also { j ->
+            scope.launch {
+                j.state.collect { join ->
+                    if (join.status != JoinStatus.JOINED) return@collect
+                    val s = _state.value
+                    if (rePairInFlight || s.isBusy ||
+                        s.conn == ConnState.CONNECTED || s.conn == ConnState.CONNECTING
+                    ) return@collect
+                    rePairInFlight = true
+                    scope.launch {
+                        try {
+                            performPair() // includes the time sync on success
+                        } finally {
+                            rePairInFlight = false
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Main-thread only (scope is Main.immediate): claims a JOINED transition so
+    // the collector and joinAndPair() never run the handshake twice.
+    private var rePairInFlight = false
+
+    /** Join-progress of the programmatic AP join, for the Pair screen's Wi-Fi card. */
+    val wifiJoin: StateFlow<WifiJoinState> get() = joiner.state
 
     private val _state = MutableStateFlow(EdgeUiState())
     val state: StateFlow<EdgeUiState> = _state
@@ -77,12 +124,43 @@ class EdgeConnection(context: Context) {
         prefs.edit().putString(KEY_MODE, value.wire).apply()
     }
 
+    fun setWifiSsid(value: String) {
+        wifiSsid.value = value
+        prefs.edit().putString(KEY_WIFI_SSID, value).apply()
+    }
+
+    fun setWifiPsk(value: String) {
+        wifiPsk.value = value
+        prefs.edit().putString(KEY_WIFI_PSK, value).apply()
+    }
+
     fun isConfigured(): Boolean = host.value.trim().isNotEmpty()
+
+    fun hasWifiCredentials(): Boolean = wifiSsid.value.isNotBlank() && wifiPsk.value.isNotBlank()
 
     /** True once the edge health check has succeeded (used by the drive flow). */
     fun isConnected(): Boolean = _state.value.conn == ConnState.CONNECTED
 
-    private fun client(): EdgeControlClient = EdgeControlClient(host.value, token.value)
+    // The joined peer network's socketFactory binds control traffic to the
+    // AutoPi AP — without it, requests would take the phone's default
+    // (internet) network and never reach 192.168.4.1. The joiner hands the
+    // factory out only when the configured host actually lives on that network,
+    // so a manually entered host elsewhere (dev box on the LAN) keeps default
+    // routing. Cached per (host, token, bound network): bound clients carry a
+    // private ConnectionPool (see EdgeControlClient), so rebuilding on every
+    // call would forfeit keep-alive reuse within a network epoch.
+    private var cachedClient: EdgeControlClient? = null
+    private var cachedClientKey: Triple<String, String, Network?>? = null
+
+    private fun client(): EdgeControlClient {
+        val factory = joiner.socketFactoryFor(host.value)
+        val key = Triple(host.value, token.value, if (factory != null) joiner.network else null)
+        cachedClient?.let { if (cachedClientKey == key) return it }
+        return EdgeControlClient(host.value, token.value, factory).also {
+            cachedClient = it
+            cachedClientKey = key
+        }
+    }
 
     // MARK: - Pairing / health
 
@@ -115,28 +193,66 @@ class EdgeConnection(context: Context) {
      * "handshake complete" with the offset/rtt. Mirrors the iOS `pairManually()`.
      */
     fun pair() {
+        scope.launch { performPair() }
+    }
+
+    /** The [pair] body, suspend so the joiner-state collector can track completion. */
+    private suspend fun performPair() {
+        if (!isConfigured()) {
+            update { it.copy(conn = ConnState.FAILED, connMessage = "Enter the AutoPi host first") }
+            return
+        }
+        update { it.copy(conn = ConnState.CONNECTING, lastError = null) }
+        try {
+            val health = client().health()
+            update {
+                it.copy(
+                    swVersion = health.swVersion,
+                    conn = if (health.ok) ConnState.CONNECTED else ConnState.FAILED,
+                    connMessage = if (health.ok) null else "AutoPi reported not-ok",
+                )
+            }
+            if (health.ok) {
+                refreshStatus()
+                performTimeSync(5)
+            }
+        } catch (e: Exception) {
+            update { it.copy(conn = ConnState.FAILED, connMessage = errorMessage(e)) }
+        }
+    }
+
+    // MARK: - Wi-Fi join (v2 pairing payloads)
+
+    /** Manual "Connect to AutoPi Wi-Fi" action from the Pair screen. */
+    fun connectWifi() {
+        if (!hasWifiCredentials()) return
+        joiner.join(wifiSsid.value, wifiPsk.value)
+    }
+
+    /**
+     * The one-tap connect path after scanning a v2 QR: join the AutoPi AP (when
+     * the payload carried credentials), wait for the join to settle, then run
+     * the normal [pair] + [syncTime] handshake over the peer network. With no
+     * credentials, or on UNSUPPORTED / FAILED / timeout, we still fall through
+     * to a plain [pair] — exactly today's behavior, and it also covers a phone
+     * that already sits on the AP via a manual Settings join.
+     */
+    fun joinAndPair() {
         scope.launch {
-            if (!isConfigured()) {
-                update { it.copy(conn = ConnState.FAILED, connMessage = "Enter the AutoPi host first") }
-                return@launch
-            }
-            update { it.copy(conn = ConnState.CONNECTING, lastError = null) }
-            try {
-                val health = client().health()
-                update {
-                    it.copy(
-                        swVersion = health.swVersion,
-                        conn = if (health.ok) ConnState.CONNECTED else ConnState.FAILED,
-                        connMessage = if (health.ok) null else "AutoPi reported not-ok",
-                    )
+            if (hasWifiCredentials()) {
+                joiner.join(wifiSsid.value, wifiPsk.value)
+                // The specifier dialog waits on the user, so give it a generous
+                // window; REQUESTING is the only non-terminal state after join().
+                withTimeoutOrNull(WIFI_JOIN_TIMEOUT_MS) {
+                    joiner.state.first { it.status != JoinStatus.REQUESTING }
                 }
-                if (health.ok) {
-                    refreshStatus()
-                    performTimeSync(5)
-                }
-            } catch (e: Exception) {
-                update { it.copy(conn = ConnState.FAILED, connMessage = errorMessage(e)) }
+                // The joiner-state collector may have claimed this JOINED
+                // transition already (it subscribes first) — a second handshake
+                // here would just race it.
+                if (rePairInFlight) return@launch
             }
+            pair()
+            syncTime()
         }
     }
 
@@ -344,6 +460,11 @@ class EdgeConnection(context: Context) {
         private const val KEY_HOST = "edge.host"
         private const val KEY_TOKEN = "edge.token"
         private const val KEY_MODE = "edge.mode"
+        private const val KEY_WIFI_SSID = "edge.wifi_ssid"
+        private const val KEY_WIFI_PSK = "edge.wifi_psk"
         private const val DEFAULT_HOST = "http://192.168.4.1:8765"
+
+        /** How long [joinAndPair] waits for the user to approve the join dialog. */
+        private const val WIFI_JOIN_TIMEOUT_MS = 30_000L
     }
 }

@@ -95,13 +95,25 @@ struct QRScannerView: UIViewRepresentable {
 }
 
 /// The pairing payload carried by the AutoPi's QR code.
+///
+/// v2 optionally adds the AutoPi's AP credentials under `wifi` so the app can
+/// join the Wi-Fi programmatically (`WifiJoiner`). The key is omitted when the
+/// installer does not know them (dev boxes) — a payload without it must decode
+/// exactly like v1, hence the optional.
 struct PairingPayload: Decodable {
+    /// AutoPi access-point credentials (WPA2), carried by v2 payloads.
+    struct WifiCredentials: Decodable {
+        let ssid: String
+        let psk: String
+    }
+
     let host: String
     let token: String
     let sessionId: String?
+    let wifi: WifiCredentials?
 
     enum CodingKeys: String, CodingKey {
-        case host, token
+        case host, token, wifi
         case sessionId = "session_id"
     }
 

@@ -20,6 +20,11 @@ It also:
 - **Serves a local control API** so the companion phone can create a shared
   session, choose the discovery mode, and start/stop recording remotely — offline,
   over the AutoPi's own WiFi (see [control-protocol.md](../../docs/control-protocol.md)).
+  The pairing QR carries the AP's WiFi credentials so the phone **joins that
+  network programmatically**, and the speaker **chirps** when `serve` is up
+  (the AutoPi wakes on ignition, so that is the "ready to record" cue) and again
+  on the first authenticated client — see
+  [connection.md](../../docs/connection.md).
 - **Holds a wake lock** while discovering/logging so the AutoPi never sleeps
   mid-recording.
 - **Self-provisions and updates from the phone**: bootstrap once
@@ -177,9 +182,11 @@ canrosetta-edge serve --transport socketcan --control-port 8765 --control-token 
 canrosetta-edge pairing --control-token "$TOKEN"
 ```
 
-Since the AutoPi is headless, `serve` prints the pairing block (host, token, and
-an ASCII QR you can scan straight off the SSH terminal) on startup; `pairing`
-prints it on demand. In the app, scan it or enter host + token manually.
+Since the AutoPi is headless, `serve` prints the pairing block (host, token,
+the AP WiFi credentials when known, and an ASCII QR you can scan straight off
+the SSH terminal) on startup; `pairing` prints it on demand. In the app, scan it
+(the app then joins the AutoPi WiFi automatically — see
+[connection.md](../../docs/connection.md)) or enter host + token manually.
 
 All of `log`/`run`/`simulate`/`serve` also log the AutoPi's onboard sensors and
 hold the wake lock. The control server (`serve`) is documented in

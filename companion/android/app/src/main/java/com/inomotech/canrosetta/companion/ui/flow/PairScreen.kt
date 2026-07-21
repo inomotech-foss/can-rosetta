@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.sp
 import com.inomotech.canrosetta.companion.recording.RecordingController
 import com.inomotech.canrosetta.companion.remote.ConnState
 import com.inomotech.canrosetta.companion.remote.EdgeConnection
+import com.inomotech.canrosetta.companion.remote.JoinStatus
+import com.inomotech.canrosetta.companion.remote.WifiJoinState
 import org.json.JSONObject
 
 @Composable
@@ -45,10 +47,15 @@ fun PairScreen(
     val state by connection.state.collectAsState()
     val host by connection.host.collectAsState()
     val token by connection.token.collectAsState()
+    val wifiSsid by connection.wifiSsid.collectAsState()
+    val wifiPsk by connection.wifiPsk.collectAsState()
+    val wifiJoin by connection.wifiJoin.collectAsState()
     val sessionId by controller.sessionId.collectAsState()
     var scanning by remember { mutableStateOf(false) }
 
     val connected = state.conn == ConnState.CONNECTED
+    val hasWifi = wifiSsid.isNotBlank() && wifiPsk.isNotBlank()
+    val wifiJoined = wifiJoin.status == JoinStatus.JOINED
 
     Column(
         Modifier
@@ -74,13 +81,45 @@ fun PairScreen(
                 QrScanner(Modifier.fillMaxSize()) { payload ->
                     applyPayload(payload, controller, connection)
                     scanning = false
-                    connection.pair()
-                    connection.syncTime()
+                    // Joins the AP first when the payload carried credentials;
+                    // degrades to a plain pair() when it did not.
+                    connection.joinAndPair()
                 }
             }
             SecondaryButton("Cancel scan") { scanning = false }
         } else {
             SecondaryButton("Scan QR") { scanning = true }
+        }
+
+        // AutoPi Wi-Fi — programmatic AP join from the v2 QR credentials.
+        FlowCard(padding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
+            SectionLabel("AutoPi Wi-Fi")
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (hasWifi) wifiSsid else "not provisioned",
+                color = if (hasWifi) FlowTheme.text else FlowTheme.textMuted,
+                fontSize = 15.sp, fontFamily = Mono,
+            )
+            Spacer(Modifier.height(12.dp))
+            // Re-connect semantics when already joined: re-filing the identical
+            // specifier request is cheap and auto-approved by the OS.
+            PrimaryButton(
+                if (wifiJoined) "Wi-Fi joined — tap to re-connect" else "Connect to AutoPi Wi-Fi",
+                enabled = hasWifi,
+            ) { connection.connectWifi() }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                wifiLine(wifiJoin, hasWifi),
+                color = if (wifiJoined) FlowTheme.green else FlowTheme.textMuted,
+                fontSize = 12.sp, fontFamily = Mono,
+            )
+            if (wifiJoin.status == JoinStatus.UNSUPPORTED) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Android 9 or older — join the AutoPi Wi-Fi in Settings, then Pair",
+                    color = FlowTheme.amber, fontSize = 12.sp,
+                )
+            }
         }
 
         // Manual entry — first-class for a headless unit.
@@ -129,6 +168,15 @@ fun PairScreen(
     }
 }
 
+/** One-line join status for the Wi-Fi card, mirroring [handshakeLine]. */
+private fun wifiLine(join: WifiJoinState, hasWifi: Boolean): String = when (join.status) {
+    JoinStatus.IDLE -> join.message ?: if (hasWifi) "not joined" else "scan a QR with Wi-Fi credentials"
+    JoinStatus.REQUESTING -> "requesting network — approve the system dialog"
+    JoinStatus.JOINED -> "joined · control traffic bound to AutoPi"
+    JoinStatus.FAILED -> join.message ?: "join failed"
+    JoinStatus.UNSUPPORTED -> "programmatic join unavailable"
+}
+
 private fun handshakeLine(state: com.inomotech.canrosetta.companion.remote.EdgeUiState): String {
     if (state.conn != ConnState.CONNECTED) {
         return state.connMessage ?: "not paired"
@@ -148,6 +196,13 @@ private fun applyPayload(payload: String, controller: RecordingController, conne
         obj.optString("host").takeIf { it.isNotEmpty() }?.let { connection.setHost(it) }
         obj.optString("token").takeIf { it.isNotEmpty() }?.let { connection.setToken(it) }
         obj.optString("session_id").takeIf { it.isNotEmpty() }?.let { controller.setSessionId(it) }
+        // v2 payloads optionally carry the AP credentials. The QR is the source
+        // of truth: a payload without them (v1, dev boxes) must also CLEAR any
+        // previously persisted pair — leftover credentials would join a
+        // different AutoPi's AP. Mirrors the iOS `payload.wifi?.ssid ?? ""`.
+        val wifi = obj.optJSONObject("wifi")
+        connection.setWifiSsid(wifi?.optString("ssid").orEmpty())
+        connection.setWifiPsk(wifi?.optString("psk").orEmpty())
     } catch (_: Exception) {
         // Not a JSON pairing payload; ignore.
     }

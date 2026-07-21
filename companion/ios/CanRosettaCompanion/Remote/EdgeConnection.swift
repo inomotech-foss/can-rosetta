@@ -25,6 +25,8 @@ final class EdgeConnection: ObservableObject {
         static let host = "edge.host"
         static let token = "edge.token"
         static let mode = "edge.mode"
+        static let wifiSSID = "edge.wifiSSID"
+        static let wifiPSK = "edge.wifiPSK"
     }
 
     // MARK: - Persisted settings
@@ -32,6 +34,11 @@ final class EdgeConnection: ObservableObject {
     @Published var host: String { didSet { defaults.set(host, forKey: Keys.host) } }
     @Published var token: String { didSet { defaults.set(token, forKey: Keys.token) } }
     @Published var mode: EdgeMode { didSet { defaults.set(mode.rawValue, forKey: Keys.mode) } }
+    /// AutoPi AP credentials from a v2 pairing payload; empty when the QR did
+    /// not carry them (v1 / dev boxes). Joining lives in `WifiJoiner` — this
+    /// class only persists what the QR provisioned.
+    @Published var wifiSSID: String { didSet { defaults.set(wifiSSID, forKey: Keys.wifiSSID) } }
+    @Published var wifiPSK: String { didSet { defaults.set(wifiPSK, forKey: Keys.wifiPSK) } }
 
     // MARK: - Live state
 
@@ -65,10 +72,17 @@ final class EdgeConnection: ObservableObject {
         host = defaults.string(forKey: Keys.host) ?? "http://192.168.4.1:8765"
         token = defaults.string(forKey: Keys.token) ?? ""
         mode = EdgeMode(rawValue: defaults.string(forKey: Keys.mode) ?? "") ?? .fast
+        wifiSSID = defaults.string(forKey: Keys.wifiSSID) ?? ""
+        wifiPSK = defaults.string(forKey: Keys.wifiPSK) ?? ""
     }
 
     var isConfigured: Bool {
         !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Whether a v2 pairing payload provisioned the AutoPi's AP credentials.
+    var hasWifiCredentials: Bool {
+        !wifiSSID.isEmpty && !wifiPSK.isEmpty
     }
 
     /// A fresh, `Sendable` client snapshot of the current settings.
@@ -77,6 +91,25 @@ final class EdgeConnection: ObservableObject {
     }
 
     // MARK: - Pairing / health
+
+    /// One-tap pairing: when the AutoPi's AP credentials are provisioned
+    /// (QR v2), join its Wi-Fi first, then run the usual health check + time
+    /// sync. Without credentials this is exactly the plain v1 pairing path.
+    /// The `WifiJoiner` is owned by the view and injected here so this class
+    /// stays transport-agnostic.
+    func joinAndPair(joiner: WifiJoiner) async {
+        if hasWifiCredentials {
+            // The join outcome is informational only (the UI shows the joiner
+            // state): the phone may already be on the AP, or reach the host
+            // some other way (Simulator via the Mac, dev boxes on the LAN).
+            // Always fall through to the health check — like the v1 scan flow
+            // and the Android side — because reachability, not association,
+            // is what pairing actually needs.
+            await joiner.join(ssid: wifiSSID, psk: wifiPSK)
+        }
+        await checkHealth()
+        if connectionState == .connected { await syncTime() }
+    }
 
     func checkHealth() async {
         guard isConfigured else {

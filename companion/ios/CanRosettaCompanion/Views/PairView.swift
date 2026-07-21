@@ -2,11 +2,18 @@ import SwiftUI
 
 /// 01 — Pair AutoPi. A live QR viewfinder configures the `EdgeConnection` from a
 /// JSON payload and runs the Cristian time-sync; a manual host/token fallback
-/// reuses the same logic. "Confirm — arm both recorders" advances to pre-flight.
+/// reuses the same logic. A v2 payload also carries the AutoPi's AP
+/// credentials — the view then joins the Wi-Fi programmatically (`WifiJoiner`)
+/// before the handshake, so the user never leaves the app for Settings.
+/// "Confirm — arm both recorders" advances to pre-flight.
 struct PairView: View {
     @EnvironmentObject private var controller: RecordingController
     @EnvironmentObject private var connection: EdgeConnection
     @EnvironmentObject private var flow: DriveFlowModel
+
+    // View-owned (not app-level environment): the joiner is only relevant to
+    // pairing, and `EdgeConnection.joinAndPair` takes it as a parameter.
+    @StateObject private var joiner = WifiJoiner()
 
     @State private var qrRead = false
     @State private var scannerUnavailable = false
@@ -139,6 +146,26 @@ struct PairView: View {
                           background: Color.white.opacity(0.10)) {
                 Task { await pairManually() }
             }
+            if connection.hasWifiCredentials {
+                // Credentials were provisioned by a v2 QR — offer the
+                // programmatic join (+ pair) without re-scanning.
+                Spacer().frame(height: 10)
+                PrimaryButton(title: joiner.state == .joining ? "Joining Wi-Fi…" : "Join AutoPi Wi-Fi",
+                              enabled: joiner.state != .joining && !connection.isBusy,
+                              background: Color.white.opacity(0.10)) {
+                    Task { await connection.joinAndPair(joiner: joiner) }
+                }
+                if case .failed(let reason) = joiner.state {
+                    Spacer().frame(height: 8)
+                    Text(reason).font(.caption).foregroundStyle(Theme.redLight)
+                } else if case .applied = joiner.state {
+                    // Neutral: apply was accepted but the SSID couldn't be
+                    // confirmed — the handshake line decides success.
+                    Spacer().frame(height: 8)
+                    Text("join requested; couldn't confirm from here")
+                        .font(.mono(.caption)).foregroundStyle(Theme.textMuted)
+                }
+            }
             if handshakeComplete {
                 Spacer().frame(height: 8)
                 Text("Handshake complete.").font(.caption).foregroundStyle(Theme.green)
@@ -156,7 +183,8 @@ struct PairView: View {
             VStack(spacing: 0) {
                 InfoRow(label: "Session", value: shortSession).padding(.horizontal, 12)
                 RowSeparator(leadingInset: 12)
-                InfoRow(label: "Wi-Fi", value: "—").padding(.horizontal, 12)
+                InfoRow(label: "Wi-Fi", value: wifiStatus.text, valueColor: wifiStatus.color)
+                    .padding(.horizontal, 12)
                 RowSeparator(leadingInset: 12)
                 InfoRow(label: "Control token",
                         value: handshakeComplete ? "verified" : "unverified",
@@ -189,18 +217,39 @@ struct PairView: View {
         String(controller.sessionId.prefix(13)) + (controller.sessionId.count > 13 ? "…" : "")
     }
 
+    /// The details-card Wi-Fi row: SSID + live join state when the AP
+    /// credentials were provisioned (QR v2), otherwise a muted
+    /// "not provisioned" — the v1 look.
+    private var wifiStatus: (text: String, color: Color) {
+        guard connection.hasWifiCredentials else { return ("not provisioned", Theme.textMuted) }
+        switch joiner.state {
+        case .idle: return (connection.wifiSSID, Theme.textSecondary)
+        case .joining: return ("joining \(connection.wifiSSID)…", Theme.textSecondary)
+        case .joined(let ssid): return (ssid, Theme.green)
+        // Join requested but unconfirmed — neutral, not an error; the
+        // handshake result below is what proves reachability.
+        case .applied(let ssid): return ("\(ssid) — join requested", Theme.textSecondary)
+        case .failed: return ("\(connection.wifiSSID) — join failed", Theme.redLight)
+        case .unavailable(let reason): return (reason, Theme.textMuted)
+        }
+    }
+
     private func handleCode(_ text: String) {
         guard let payload = PairingPayload.decode(text) else { return }
         connection.host = payload.host
         connection.token = payload.token
+        // v2 payloads provision the AP credentials. A payload without `wifi`
+        // clears any stale ones: the QR is the source of truth for this
+        // pairing, and a leftover SSID would join the wrong AutoPi's AP.
+        connection.wifiSSID = payload.wifi?.ssid ?? ""
+        connection.wifiPSK = payload.wifi?.psk ?? ""
         if let sid = payload.sessionId, !sid.isEmpty, !controller.isRecording {
             controller.sessionId = sid
         }
         qrRead = true
-        Task {
-            await connection.checkHealth()
-            if connection.connectionState == .connected { await connection.syncTime() }
-        }
+        // Joins the AP first when provisioned; degrades to plain
+        // health-check + time-sync (the v1 flow) when it is not.
+        Task { await connection.joinAndPair(joiner: joiner) }
     }
 
     private func pairManually() async {
