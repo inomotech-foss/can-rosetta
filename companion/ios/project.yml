@@ -55,6 +55,15 @@ targets:
         # Code signing lives in Signing.xcconfig (automatic). Xcode signs device
         # builds; the Simulator needs none. CI passes CODE_SIGNING_ALLOWED=NO on
         # the xcodebuild command line, which cleanly disables signing there.
+        #
+        # CarPlay car app (App/CarPlaySceneDelegate.swift): the driving-task
+        # entitlement is *managed* — Apple grants it per app, so it cannot go in
+        # the generated (device) entitlements without breaking automatic signing.
+        # Apply it to Simulator builds only, which do not validate managed
+        # entitlements, so the CarPlay app runs in the CarPlay Simulator now and
+        # device/TestFlight builds are unaffected. Swap to the shared file (and
+        # add the key to the `entitlements` block) once the grant lands.
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: CanRosettaCompanion-Simulator.entitlements
     dependencies:
       # Embeds the widget/Live Activity extension into the app's PlugIns, so the
       # existing CI scheme (which builds only this target) builds it too — no
@@ -108,6 +117,19 @@ targets:
         # entitlement — the zero-approval way to get recording status and a
         # Stop button onto the head unit while the phone is docked.
         NSSupportsLiveActivities: true
+        # Declare the CarPlay car app scene so it can connect alongside the
+        # phone window scene. Only the CarPlay role is listed: SwiftUI's `App`
+        # lifecycle does NOT reliably call `configurationForConnecting`, so the
+        # CarPlay scene must be wired to its delegate here by class name;
+        # the window (phone) role is intentionally omitted and left to SwiftUI.
+        # `$(PRODUCT_MODULE_NAME)` expands to the app's Swift module at build
+        # time -> CanRosettaCompanion.CarPlaySceneDelegate.
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneConfigurationName: CarPlay
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySceneDelegate
         # Custom URL scheme so the idle status widget's `canrosetta://record`
         # deep link (RecordingStatusWidget) routes to this app, where onOpenURL
         # navigates to the start of the drive flow. Mirrored into the checked-in
@@ -119,12 +141,15 @@ targets:
   # Widget + Live Activity extension. iOS 26 shows an app's widgets and Live
   # Activities on the CarPlay Dashboard without any CarPlay entitlement, so this
   # target is the companion's driver-visible surface in the car. Floors at
-  # iOS 17.0: interactive widgets (Button(intent:)) need 17, and Live Activity
-  # UI ships in the same extension.
+  # iOS 18.0: the CarPlay Live Activity requires the `.small` activity family
+  # (`supplementalActivityFamilies` / `\.activityFamily`), which landed in iOS 18
+  # for the Apple Watch Smart Stack and is reused by CarPlay on iOS 26. (The
+  # older iOS 17 needs — interactive widgets via `Button(intent:)` and the Live
+  # Activity UI — are all still satisfied at 18.)
   CanRosettaWidgets:
     type: app-extension # extension point: com.apple.widgetkit-extension (see `info`)
     platform: iOS
-    deploymentTarget: "17.0"
+    deploymentTarget: "18.0"
     sources:
       # Same convention as the app: Info.plist / entitlements are generated
       # from the blocks below, so keep the checked-in files out of the build.
