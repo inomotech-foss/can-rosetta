@@ -48,10 +48,14 @@ recorded sessions; the learned foundation model is scaffolded, not yet trained.
 
 ## Foundation model
 
-- [ ] Data pipeline to assemble large multi-vehicle pretraining corpora from raw
-      CAN logs (no labels needed).
-- [ ] Train the masked-byte encoder (`server/canrosetta/model/pretrain.py`) and
-      publish a checkpoint.
+- [x] Training pipeline: `canrosetta pretrain <sessions...> --out <run>` —
+      corpus packing, time-ordered split, majority-baseline yardstick,
+      checkpointing, and a per-ID/byte surprisal report
+      (`server/canrosetta/model/train.py`). First single-vehicle run done on
+      the eVito charge session; single-vehicle checkpoints do not transfer —
+      the corpus grows with every fleet session.
+- [ ] Assemble a large multi-vehicle pretraining corpus from raw fleet CAN
+      logs (no labels needed) and publish a cross-vehicle checkpoint.
 - [ ] Fine-tune a signal-type head on aligned labels from the baseline; measure
       how many labelled drives a new vehicle needs.
 - [ ] Feed model predictions back to shrink the baseline's candidate search.

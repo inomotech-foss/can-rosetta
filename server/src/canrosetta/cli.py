@@ -170,6 +170,22 @@ def _cmd_perceive(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_pretrain(args: argparse.Namespace) -> int:
+    # Lazy import: train.py itself imports torch lazily, but keep the CLI
+    # importable (and every other command working) without the [model] extra.
+    from .model.train import TrainConfig, train
+
+    cfg = TrainConfig(steps=args.steps, batch_size=args.batch_size,
+                      val_frac=args.val_frac, seed=args.seed,
+                      max_frames=args.max_frames)
+    report = train(args.paths, cfg, args.out)
+    lift = report["val_masked_accuracy"] - report["majority_baseline_accuracy"]
+    print(f"masked-byte accuracy {report['val_masked_accuracy']:.4f} "
+          f"vs majority baseline {report['majority_baseline_accuracy']:.4f} "
+          f"({'+' if lift >= 0 else ''}{lift:.4f})")
+    return 0
+
+
 def _cmd_fingerprint(args: argparse.Namespace) -> int:
     session = load_session(args.session)
     for aid, fid in sorted(session.frames.by_id().items()):
@@ -210,6 +226,19 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("fingerprint", help="print behavioral fingerprints per arb ID")
     s.add_argument("session")
     s.set_defaults(func=_cmd_fingerprint)
+
+    s = sub.add_parser("pretrain",
+                       help="masked-byte pretraining of the CAN byte model "
+                            "(needs canrosetta[model])")
+    s.add_argument("paths", nargs="+",
+                   help="session directories and/or frames.jsonl files")
+    s.add_argument("--out", required=True, help="run directory for checkpoint.pt + report.json")
+    s.add_argument("--steps", type=int, default=10_000)
+    s.add_argument("--batch-size", type=int, default=512)
+    s.add_argument("--val-frac", type=float, default=0.05)
+    s.add_argument("--max-frames", type=int, default=None)
+    s.add_argument("--seed", type=int, default=0)
+    s.set_defaults(func=_cmd_pretrain)
 
     s = sub.add_parser("roles",
                        help="classify each arbitration ID's cadence (periodic/sporadic/on-demand)")
