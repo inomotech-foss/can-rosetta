@@ -59,6 +59,14 @@ class RecordingForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val app = application as CanRosettaApplication
         val controller = app.recordingController
+
+        // A sticky restart (see START_STICKY below) can re-deliver this intent
+        // after recording has already stopped; do not re-foreground in that case.
+        if (!controller.status.value.isRecording) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         createChannel()
 
         try {
@@ -91,10 +99,12 @@ class RecordingForegroundService : Service() {
             }
         }
 
-        // If the OS kills us, a restart without the live controller state would
-        // just show a stale notification — the app holder re-starts us anyway
-        // when recording is (still) active.
-        return START_NOT_STICKY
+        // Sticky so a long recording survives process death: the app holder's
+        // collector only fires on a false->true transition, so if the OS kills
+        // us mid-drive it would never re-start us — START_STICKY has the OS
+        // re-deliver a null intent, and the guard above stops us again if the
+        // recording has since ended.
+        return START_STICKY
     }
 
     override fun onDestroy() {

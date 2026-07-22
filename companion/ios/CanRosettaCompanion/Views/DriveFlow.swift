@@ -83,6 +83,14 @@ final class DriveFlowModel: ObservableObject {
 
     func skipMarker() { withPhase(.handoff) }
 
+    /// Deep-link entry (the idle status widget's `canrosetta://record` link):
+    /// jump to the start of the flow — the pair/start screen. Navigation only,
+    /// so the driver still runs the pre-flight flow before any recording begins;
+    /// starting is deliberately not automated (see RecordingStatusWidget).
+    func goToStart() {
+        withPhase(.pair)
+    }
+
     /// Reset for a fresh drive (from the hand-off screen).
     func startAnotherDrive(controller: RecordingController) {
         controller.newSessionID()

@@ -116,9 +116,12 @@ final class RecordingController: ObservableObject {
     /// counts as "significant" and bypasses the 5 s throttle.
     private var lastActivityAccuracyBucket: Int?
     /// The running `Activity<RecordingActivityAttributes>`. Stored as `Any`
-    /// because stored properties cannot carry `@available` and ActivityKit's
-    /// content API is iOS 16.2+ while this target floors at 16.0; every access
-    /// casts back inside an availability check.
+    /// because stored properties cannot carry `@available`; every access casts
+    /// back inside an availability check. The floor is iOS 17.0 — not
+    /// ActivityKit's own 16.2 — because the sole target that renders this
+    /// activity (the CanRosettaWidgets extension) floors at 17.0, so requesting
+    /// one on 16.x would be a silent no-op with no card to show. (17.0 >= 16.2,
+    /// so the 16.2-era ActivityAttributes/ContentState types stay usable.)
     private var liveActivity: Any?
 
     /// A persistent location source so we can request authorization and show
@@ -519,7 +522,7 @@ final class RecordingController: ObservableObject {
         }
     }
 
-    @available(iOS 16.2, *)
+    @available(iOS 17.0, *)
     private func activityContentState() -> RecordingActivityAttributes.ContentState {
         RecordingActivityAttributes.ContentState(
             isRecording: isRecording,
@@ -530,9 +533,10 @@ final class RecordingController: ObservableObject {
     }
 
     /// Start the session's Live Activity. Best-effort: authorization can be
-    /// off, the device may predate iOS 16.2 — recording proceeds regardless.
+    /// off, the device may predate iOS 17.0 (the widget/renderer floor) —
+    /// recording proceeds regardless.
     private func startLiveActivity() {
-        guard #available(iOS 16.2, *) else { return }
+        guard #available(iOS 17.0, *) else { return }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             logger.info("Live Activities disabled; recording without one")
             return
@@ -561,7 +565,7 @@ final class RecordingController: ObservableObject {
     /// accuracy in whole metres) or every ~5 s (counters; the visible timer
     /// ticks locally in the widget extension and needs no updates at all).
     private func updateLiveActivityIfNeeded() {
-        guard #available(iOS 16.2, *),
+        guard #available(iOS 17.0, *),
               let activity = liveActivity as? Activity<RecordingActivityAttributes> else { return }
         let uptime = ProcessInfo.processInfo.systemUptime
         let accuracyBucket = gpsHorizontalAccuracy.map { Int($0.rounded()) }
@@ -577,7 +581,7 @@ final class RecordingController: ObservableObject {
     /// leaves the card briefly on the lock screen so the driver sees the
     /// session close.
     private func endLiveActivity() {
-        guard #available(iOS 16.2, *),
+        guard #available(iOS 17.0, *),
               let activity = liveActivity as? Activity<RecordingActivityAttributes> else { return }
         liveActivity = nil
         let content = ActivityContent(state: activityContentState(), staleDate: nil)

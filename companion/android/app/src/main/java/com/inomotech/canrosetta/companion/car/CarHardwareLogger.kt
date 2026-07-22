@@ -28,6 +28,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -84,11 +85,16 @@ class CarHardwareLogger(
         started = true
         registerAll()
         // Flush the cached one-shot facts into every session that starts while
-        // the car is connected (rising edge of isRecording).
+        // the car is connected (rising edge of isRecording). drop(1) skips the
+        // collector's INITIAL replay of the current state: if a session is
+        // already recording, registerAll() above wrote the stubs inline, so
+        // replaying that same state here would duplicate every fact — only
+        // genuine later false->true transitions should flush.
         scope.launch {
             controller.status
                 .map { it.isRecording }
                 .distinctUntilChanged()
+                .drop(1)
                 .collect { recording -> if (recording) flushPendingFacts() }
         }
     }
@@ -145,22 +151,25 @@ class CarHardwareLogger(
         guard("mileage", PERM_CAR_MILEAGE) {
             info.addMileageListener(mainExecutor, mileageListener)
         }
+        // NORMAL rate, not FASTEST: this stream is for availability + a coarse
+        // reference, and the callbacks run on the main thread — FASTEST would
+        // serialise hundreds of records/s there for no benefit.
         // The car GNSS feed is gated by the phone's own location permission.
         guard("location", Manifest.permission.ACCESS_FINE_LOCATION) {
             sensors.addCarHardwareLocationListener(
-                CarSensors.UPDATE_RATE_FASTEST, mainExecutor, locationListener)
+                CarSensors.UPDATE_RATE_NORMAL, mainExecutor, locationListener)
         }
         guard("accelerometer") {
             sensors.addAccelerometerListener(
-                CarSensors.UPDATE_RATE_FASTEST, mainExecutor, accelerometerListener)
+                CarSensors.UPDATE_RATE_NORMAL, mainExecutor, accelerometerListener)
         }
         guard("gyroscope") {
             sensors.addGyroscopeListener(
-                CarSensors.UPDATE_RATE_FASTEST, mainExecutor, gyroscopeListener)
+                CarSensors.UPDATE_RATE_NORMAL, mainExecutor, gyroscopeListener)
         }
         guard("compass") {
             sensors.addCompassListener(
-                CarSensors.UPDATE_RATE_FASTEST, mainExecutor, compassListener)
+                CarSensors.UPDATE_RATE_NORMAL, mainExecutor, compassListener)
         }
     }
 
@@ -191,25 +200,28 @@ class CarHardwareLogger(
     private fun unregisterAll() {
         val info = carInfo
         val sensors = carSensors
-        try {
-            if (info != null) {
-                if ("energy" in registeredKinds) info.removeEnergyLevelListener(energyListener)
-                if ("speed" in registeredKinds) info.removeSpeedListener(speedListener)
-                if ("mileage" in registeredKinds) info.removeMileageListener(mileageListener)
-            }
-            if (sensors != null) {
-                if ("location" in registeredKinds) {
-                    sensors.removeCarHardwareLocationListener(locationListener)
-                }
-                if ("accelerometer" in registeredKinds) {
-                    sensors.removeAccelerometerListener(accelerometerListener)
-                }
-                if ("gyroscope" in registeredKinds) sensors.removeGyroscopeListener(gyroscopeListener)
-                if ("compass" in registeredKinds) sensors.removeCompassListener(compassListener)
-            }
+        // Each removal is isolated: a throw on one listener (host gone away)
+        // must not leave the rest registered, or a later re-register would
+        // double-subscribe them and deliver every callback twice.
+        fun tryRemove(block: () -> Unit) = try {
+            block()
         } catch (e: Exception) {
-            // Removal after the host went away is not worth crashing over.
             Log.w(AppInfo.TAG, "car_hw unregister failed: ${e.message}")
+        }
+        if (info != null) {
+            if ("energy" in registeredKinds) tryRemove { info.removeEnergyLevelListener(energyListener) }
+            if ("speed" in registeredKinds) tryRemove { info.removeSpeedListener(speedListener) }
+            if ("mileage" in registeredKinds) tryRemove { info.removeMileageListener(mileageListener) }
+        }
+        if (sensors != null) {
+            if ("location" in registeredKinds) {
+                tryRemove { sensors.removeCarHardwareLocationListener(locationListener) }
+            }
+            if ("accelerometer" in registeredKinds) {
+                tryRemove { sensors.removeAccelerometerListener(accelerometerListener) }
+            }
+            if ("gyroscope" in registeredKinds) tryRemove { sensors.removeGyroscopeListener(gyroscopeListener) }
+            if ("compass" in registeredKinds) tryRemove { sensors.removeCompassListener(compassListener) }
         }
         registeredKinds.clear()
     }
@@ -308,8 +320,10 @@ class CarHardwareLogger(
      * not replay into a later session.
      */
     private fun deliver(kind: String, status: String, record: JSONObject, oneShot: Boolean = false) {
-        kindStatus[kind] = status
-        _summary.value = formatSummary()
+        // Rebuild the summary only when this kind's status actually changed; the
+        // car screen reads it at ~1 Hz, so recomputing on every callback (up to
+        // NORMAL-rate for the sensor feeds) is wasted work.
+        if (kindStatus.put(kind, status) != status) _summary.value = formatSummary()
         if (oneShot) pendingFacts[kind] = record else pendingFacts.remove(kind)
         if (controller.status.value.isRecording) {
             controller.appendCarHardware(record)

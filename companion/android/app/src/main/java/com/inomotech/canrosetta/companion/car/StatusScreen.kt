@@ -143,7 +143,13 @@ class StatusScreen(
         if (isRecording) {
             if (coordinated) connection.stopRecording(controller) else controller.stop()
         } else {
-            if (coordinated) connection.startRecording(controller) else controller.start()
+            // Singleton controller is reused across drives; mint a fresh session
+            // id so this drive's files land in their own directory.
+            controller.newSessionId()
+            // Car surface = docked/pocketed phone; never power the camera for a
+            // car-initiated session.
+            if (coordinated) connection.startRecording(controller, enableCamera = false)
+            else controller.start(enableCamera = false)
         }
     }
 

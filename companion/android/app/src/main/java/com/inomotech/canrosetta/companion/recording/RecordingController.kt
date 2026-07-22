@@ -242,7 +242,14 @@ class RecordingController(
         stopVibrationMonitor()
     }
 
-    fun start() {
+    /**
+     * Begin recording. [enableCamera] gates the camera entirely: car-initiated
+     * sessions pass `false` because the car surface means a docked/pocketed
+     * phone, and with the camera bound to `ProcessLifecycleOwner` it would
+     * otherwise power on the moment the driver opens the phone app mid-drive.
+     * Phone-UI sessions keep the default `true`.
+     */
+    fun start(enableCamera: Boolean = true) {
         if (_status.value.isRecording) return
         update { it.copy(exportPath = null, lastError = null, distanceMeters = 0.0) }
 
@@ -306,7 +313,7 @@ class RecordingController(
             locationSource = location
             location.start()
 
-            if (filmDashboard.value || capturePhotos.value) {
+            if (enableCamera && (filmDashboard.value || capturePhotos.value)) {
                 if (hasCameraPermission()) {
                     startCamera(clock, phone)
                 } else {
