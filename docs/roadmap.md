@@ -45,6 +45,19 @@ recorded sessions; the learned foundation model is scaffolded, not yet trained.
       their effect. Strictly read-only (never transmits).
 - [ ] **EV charging** connector/mode/AC-metering: added; still to do — cross-session
       de-collinearization of the charging-power group.
+- [x] **Car projection** ([design](car-projection.md)): Android Auto IoT car
+      app — head-unit status + coordinated start/stop — plus `CarHardwareManager`
+      reference logging to `phone/car_hw.jsonl` (every fetch logged, including
+      `unavailable`: per-OEM availability evidence); iOS interactive widget +
+      Live Activity (on the CarPlay Dashboard from iOS 26, no entitlement);
+      `produced_by_accessory` GPS provenance on iOS location records.
+- [ ] **MBUX spike**: open the car app on the eVito once per drive and read the
+      `car_hw.jsonl` statuses — does MBUX forward anything? No Mercedes data
+      point exists yet.
+- [ ] **CarPlay full app**: blocked on the `carplay-driving-task` entitlement
+      (application pending, owned by the developer account).
+- [ ] **Cloud reference fallback**: Mercedes Fleet API / Smartcar / Enode —
+      minutes-cadence odometer/SoC anchors if MBUX forwards nothing.
 
 ## Foundation model
 

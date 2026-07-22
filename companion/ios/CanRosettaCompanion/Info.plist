@@ -37,6 +37,8 @@
 	<string>CAN-Rosetta records GPS position, speed and course while you drive, as ground-truth for aligning and decoding the vehicle's CAN bus.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>CAN-Rosetta records accelerometer, gyroscope and attitude while you drive. These motion samples are the known reference used to decode the vehicle's CAN bus.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

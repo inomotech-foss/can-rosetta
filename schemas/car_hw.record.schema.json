@@ -1,0 +1,322 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/inomotech-foss/can-rosetta/schemas/car_hw.record.schema.json",
+  "title": "One car-hardware record — a single line of phone/car_hw.jsonl",
+  "description": "Vehicle data the head unit forwards to the phone's car-projection layer (Android Auto CarHardwareManager; CarPlay forwards no vehicle data). One record per callback or fetch, INCLUDING non-success ones: whether a given OEM head unit forwards a kind at all is exactly the question this stream answers, so 'unavailable'/'unimplemented'/'error' records are deliberate availability evidence, not noise. See docs/car-projection.md.",
+  "type": "object",
+  "required": [
+    "t_utc",
+    "kind",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "t_utc": {
+      "type": "number",
+      "description": "Unix epoch seconds on the PHONE clock — the same clock domain as phone/motion.jsonl, not the head unit's clock. Stamped at callback delivery on the phone."
+    },
+    "kind": {
+      "enum": [
+        "model",
+        "energy",
+        "speed",
+        "mileage",
+        "location",
+        "accelerometer",
+        "gyroscope",
+        "compass"
+      ],
+      "description": "Which car-hardware source produced the record."
+    },
+    "status": {
+      "enum": [
+        "success",
+        "unavailable",
+        "unimplemented",
+        "error"
+      ],
+      "description": "Delivery status as reported by the projection API. Non-success statuses are logged ON PURPOSE: the per-OEM availability map (does this head unit forward speed? SoC? anything?) is itself the deliverable of this stream."
+    },
+    "data": {
+      "type": "object",
+      "description": "Payload; the shape per kind is constrained by the allOf branches below. Every field is nullable and unknown fields are omitted. Values are logged verbatim with no range constraints — an implausible value from a head unit is itself evidence and must not fail validation."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "model"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "make": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "year": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "description": "diagnostic for non-success records (e.g. 'permission_denied', a host exception message) — written by the producer, not the car"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "energy"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "battery_percent": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "traction battery state of charge, nominally 0–100"
+              },
+              "fuel_percent": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "fuel level, nominally 0–100"
+              },
+              "range_meters": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "remaining range estimate, m"
+              },
+              "energy_low": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "vehicle's own low-energy warning flag"
+              },
+              "reason": {
+                "type": "string",
+                "description": "diagnostic for non-success records (e.g. 'permission_denied', a host exception message) — written by the producer, not the car"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "speed"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "raw_mps": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "propulsion/wheel speed, m/s"
+              },
+              "display_mps": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "speed as shown on the cluster, m/s (OEMs often display a few % high)"
+              },
+              "reason": {
+                "type": "string",
+                "description": "diagnostic for non-success records (e.g. 'permission_denied', a host exception message) — written by the producer, not the car"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "mileage"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "odometer_meters": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "description": "diagnostic for non-success records (e.g. 'permission_denied', a host exception message) — written by the producer, not the car"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "location"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "lat": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "lon": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "accuracy_m": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "speed_mps": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "bearing_deg": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "description": "diagnostic for non-success records (e.g. 'permission_denied', a host exception message) — written by the producer, not the car"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "accelerometer",
+              "gyroscope",
+              "compass"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "axes in the platform's units as delivered, logged verbatim (Android Auto: accelerometer m/s², gyroscope rad/s, compass degrees)",
+            "properties": {
+              "x": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "y": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "z": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "description": "diagnostic for non-success records (e.g. 'permission_denied', a host exception message) — written by the producer, not the car"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -10,8 +10,12 @@ import os
 /// - `speed`        m/s over ground, `-1` if unknown
 /// - `course`       degrees from true north, `-1` if unknown
 /// - `hAcc`/`vAcc`  horizontal/vertical accuracy, m
+/// - `producedByAccessory`  optional; true when the fix came from an external
+///   accessory rather than the phone's own GNSS (see below)
 ///
-/// `tUtc` encodes to `t_utc`, `hAcc`/`vAcc` to `h_acc`/`v_acc`.
+/// `tUtc` encodes to `t_utc`, `hAcc`/`vAcc` to `h_acc`/`v_acc`,
+/// `producedByAccessory` to `produced_by_accessory` (omitted when nil — the
+/// synthesized `Encodable` uses `encodeIfPresent` for optionals).
 struct LocationRecord: Encodable {
     let tUtc: Double
     let lat: Double
@@ -21,6 +25,14 @@ struct LocationRecord: Encodable {
     let course: Double
     let hAcc: Double
     let vAcc: Double
+    /// Wireless CarPlay head units transparently feed vehicle GNSS (typically
+    /// wheel-speed-aided dead reckoning) into CoreLocation, so a docked
+    /// iPhone's "GPS" may actually be the car's — not an independent phone
+    /// reference. The pipeline needs this flag to tell fused fixes from
+    /// phone-only GPS. Written only when CoreLocation reports source
+    /// information (iOS 15+ API; our floor is 16, but the field itself can be
+    /// absent), so `nil` here means "provenance unknown", not "phone GPS".
+    let producedByAccessory: Bool?
 }
 
 /// Wraps `CLLocationManager` at best accuracy for driving, mapping each fix to
@@ -110,7 +122,11 @@ final class LocationSource: NSObject, CLLocationManagerDelegate {
                 speed: loc.speed >= 0 ? loc.speed : -1,
                 course: loc.course >= 0 ? loc.course : -1,
                 hAcc: loc.horizontalAccuracy,
-                vAcc: loc.verticalAccuracy
+                vAcc: loc.verticalAccuracy,
+                // GPS provenance: `sourceInformation` is nil when CoreLocation
+                // has nothing to say (e.g. Simulator); only then do we omit the
+                // field, keeping "unknown" distinct from "phone GPS" (false).
+                producedByAccessory: loc.sourceInformation?.isProducedByAccessory
             )
             if loc.horizontalAccuracy >= 0 {
                 lastHorizontalAccuracy = loc.horizontalAccuracy

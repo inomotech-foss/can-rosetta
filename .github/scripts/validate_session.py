@@ -49,6 +49,7 @@ def main(session_dir: str) -> int:
         ("can/frames.jsonl", "can_frame.record.schema.json"),
         ("phone/motion.jsonl", "motion.record.schema.json"),
         ("phone/location.jsonl", "location.record.schema.json"),
+        ("phone/car_hw.jsonl", "car_hw.record.schema.json"),
         ("edge/motion.jsonl", "motion.record.schema.json"),
         ("edge/location.jsonl", "location.record.schema.json"),
         ("labels/telltales.jsonl", "label_telltale.record.schema.json"),

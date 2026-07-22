@@ -50,6 +50,14 @@ no internet or server needed in the car. The server processes uploaded sessions
 afterward. Real-world `candump -L` logs can be imported straight into the
 pipeline with `canrosetta import-candump`.
 
+The companion also **projects into the car**: on Android Auto a templated car
+app puts recording status and start/stop on the head unit and logs whatever
+vehicle data the head unit forwards (battery %, speed, odometer, …) to
+`phone/car_hw.jsonl` — *including* `unavailable` answers, because which signals
+an OEM forwards is itself the question; on iOS an interactive widget and Live
+Activity appear on the CarPlay Dashboard (iOS 26+). See
+[docs/car-projection.md](docs/car-projection.md).
+
 ```
  AutoPi  ──►  can/frames.parquet + can/discovery.json  ─┐
                                                          ├──►  server  ──►  DBC + labels + model

@@ -53,7 +53,7 @@
         "additionalProperties": true,
         "properties": {
           "path": { "type": "string" },
-          "kind": { "enum": ["can_frames", "discovery", "motion", "location", "video"] },
+          "kind": { "enum": ["can_frames", "discovery", "motion", "location", "video", "car_hw"] },
           "rows": { "type": "integer" },
           "index": { "type": "string" },
           "t_start_utc": { "type": "number" },

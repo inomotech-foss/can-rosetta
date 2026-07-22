@@ -22,10 +22,13 @@ targets:
     platform: iOS
     deploymentTarget: "16.0"
     sources:
-      # Exclude the hand-written Info.plist; XcodeGen generates it from `info`.
+      # Exclude the checked-in Info.plist and entitlements; XcodeGen generates
+      # them from `info` / `entitlements` below and would otherwise sweep the
+      # files into the resources phase (they sit inside the sources folder).
       - path: CanRosettaCompanion
         excludes:
           - "Info.plist"
+          - "CanRosettaCompanion.entitlements"
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
@@ -37,6 +40,22 @@ targets:
         # Code signing lives in Signing.xcconfig (automatic). Xcode signs device
         # builds; the Simulator needs none. CI passes CODE_SIGNING_ALLOWED=NO on
         # the xcodebuild command line, which cleanly disables signing there.
+    dependencies:
+      # Embeds the widget/Live Activity extension into the app's PlugIns, so the
+      # existing CI scheme (which builds only this target) builds it too — no
+      # second scheme needed. The extension floors at iOS 17 while the app stays
+      # at 16; on iOS 16 the app runs and the extension is simply never offered.
+      - target: CanRosettaWidgets
+    # App Groups is an "unmanaged capability": XcodeGen has no capabilities UI,
+    # so it is declared directly via a checked-in entitlements file (generated
+    # from `properties` below, like Info.plist). Automatic signing registers the
+    # group; CI is unaffected because it builds with CODE_SIGNING_ALLOWED=NO.
+    # The group carries the RecordingSnapshot the widget timeline reads.
+    entitlements:
+      path: CanRosettaCompanion/CanRosettaCompanion.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.inomotech.canrosetta.companion
     # System frameworks (CoreMotion, CoreLocation, AVFoundation) are linked
     # automatically by the Swift compiler via module autolinking on `import`.
     info:
@@ -75,9 +94,63 @@ targets:
           - location
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
+        # Live Activity of the running recording. iOS 26 surfaces Live
+        # Activities (and widgets) on the CarPlay Dashboard with no CarPlay
+        # entitlement — the zero-approval way to get recording status and a
+        # Stop button onto the head unit while the phone is docked.
+        NSSupportsLiveActivities: true
+
+  # Widget + Live Activity extension. iOS 26 shows an app's widgets and Live
+  # Activities on the CarPlay Dashboard without any CarPlay entitlement, so this
+  # target is the companion's driver-visible surface in the car. Floors at
+  # iOS 17.0: interactive widgets (Button(intent:)) need 17, and Live Activity
+  # UI ships in the same extension.
+  CanRosettaWidgets:
+    type: app-extension # extension point: com.apple.widgetkit-extension (see `info`)
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      # Same convention as the app: Info.plist / entitlements are generated
+      # from the blocks below, so keep the checked-in files out of the build.
+      - path: CanRosettaWidgets
+        excludes:
+          - "Info.plist"
+          - "CanRosettaWidgets.entitlements"
+      # Types shared with the app (snapshot, ActivityAttributes, App Intents):
+      # compiled into BOTH targets rather than pulled into a framework — the
+      # widget needs the types, the app performs the intents.
+      - path: CanRosettaCompanion/Shared
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.inomotech.canrosetta.companion.widgets
+        PRODUCT_NAME: CanRosettaWidgets
+        TARGETED_DEVICE_FAMILY: "1" # iPhone
+        # Extensions ship inside the app; never stage the .appex as its own
+        # product in an archive (matches Xcode's extension template).
+        SKIP_INSTALL: YES
+    info:
+      path: CanRosettaWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: CAN-Rosetta
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    # Same App Group as the app (unmanaged capability, see the app target):
+    # the widget timeline reads the RecordingSnapshot the app publishes.
+    entitlements:
+      path: CanRosettaWidgets/CanRosettaWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.inomotech.canrosetta.companion
 
 # Explicit shared scheme so CI (`xcodebuild -scheme CanRosettaCompanion`) finds
-# it without relying on Xcode auto-generating one on open.
+# it without relying on Xcode auto-generating one on open. CanRosettaWidgets is
+# built implicitly as an embedded dependency of the app target — deliberately
+# not a scheme target, so CI keeps building exactly one scheme.
 schemes:
   CanRosettaCompanion:
     build:
