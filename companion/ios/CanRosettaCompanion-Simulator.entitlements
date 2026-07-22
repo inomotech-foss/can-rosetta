@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Simulator-only entitlements. Identical to the generated
+	     CanRosettaCompanion.entitlements PLUS the managed CarPlay driving-task
+	     capability, which Apple must grant per app before it can sign a device
+	     build. The Simulator does not validate managed entitlements, so this
+	     lets the CarPlay car app run in the CarPlay Simulator today while
+	     device/TestFlight builds keep using the CarPlay-free generated file.
+	     Wired via CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*] in project.yml.
+	     Keep the non-CarPlay keys in sync with the `entitlements` block there. -->
+	<key>com.apple.developer.carplay-driving-task</key>
+	<true/>
+	<key>com.apple.developer.networking.HotspotConfiguration</key>
+	<true/>
+	<key>com.apple.developer.networking.wifi-info</key>
+	<true/>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.inomotech.canrosetta.companion</string>
+	</array>
+</dict>
+</plist>
