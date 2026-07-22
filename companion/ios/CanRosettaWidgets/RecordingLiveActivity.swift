@@ -9,13 +9,21 @@ import SwiftUI
 /// on the head unit and can stop the drive or pin a sync marker without
 /// touching the phone.
 ///
+/// CarPlay (and the Apple Watch Smart Stack) render the **`.small` activity
+/// family**, not the lock-screen banner — so the Live Activity only reaches the
+/// Dashboard when the extension declares `supplementalActivityFamilies([.small])`
+/// *and* the content view adapts to `\.activityFamily == .small`. Both are done
+/// below; without them iOS 26 shows nothing on CarPlay for this activity.
+///
 /// `RecordingController` owns the lifecycle (request → throttled updates →
 /// end); this file is pure presentation over
 /// `RecordingActivityAttributes.ContentState`.
 struct RecordingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RecordingActivityAttributes.self) { context in
-            // Lock screen / StandBy / CarPlay Dashboard banner.
+            // Lock screen / StandBy / CarPlay Dashboard banner. The banner reads
+            // `\.activityFamily` and collapses to a glanceable row when the
+            // system asks for `.small` (CarPlay Dashboard / Watch Smart Stack).
             RecordingActivityBanner(state: context.state)
                 .activityBackgroundTint(Color(red: 0.04, green: 0.05, blue: 0.09))
                 .activitySystemActionForegroundColor(.white)
@@ -47,6 +55,10 @@ struct RecordingLiveActivity: Widget {
                 RecordingDot(isRecording: context.state.isRecording)
             }
         }
+        // Opt the activity into the compact family CarPlay (and the Watch Smart
+        // Stack) present. Without this the Dashboard has no view to render and
+        // the activity simply never appears in the car.
+        .supplementalActivityFamilies([.small])
     }
 }
 
@@ -116,19 +128,28 @@ private struct RecordingActivityButtons: View {
     }
 }
 
-/// The lock-screen / StandBy / CarPlay-Dashboard banner.
+/// The lock-screen / StandBy / CarPlay-Dashboard banner. Adapts to the compact
+/// `.small` activity family (CarPlay Dashboard, Watch Smart Stack) by dropping
+/// to a single glanceable row + actions; falls back to the full banner for the
+/// standard lock-screen (`.medium`) presentation.
 private struct RecordingActivityBanner: View {
+    @Environment(\.activityFamily) private var activityFamily
     let state: RecordingActivityAttributes.ContentState
 
     var body: some View {
+        switch activityFamily {
+        case .small:
+            small
+        default:
+            medium
+        }
+    }
+
+    /// Full lock-screen / StandBy banner.
+    private var medium: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                HStack(spacing: 5) {
-                    RecordingDot(isRecording: state.isRecording)
-                    Text(state.isRecording ? "Recording drive" : "Drive saved")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(state.isRecording ? Color.red : Color.gray)
-                }
+                RecordingStatePill(isRecording: state.isRecording)
                 Spacer()
                 elapsedText(state)
                     .font(.system(.title3, design: .monospaced).weight(.semibold))
@@ -142,5 +163,25 @@ private struct RecordingActivityBanner: View {
             }
         }
         .padding(14)
+    }
+
+    /// Compact row for the CarPlay Dashboard / Watch Smart Stack: status +
+    /// live-ticking elapsed on one line, then the same in-process actions so the
+    /// driver can stop or pin a marker without reaching for the phone.
+    private var small: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                RecordingStatePill(isRecording: state.isRecording)
+                Spacer()
+                elapsedText(state)
+                    .font(.system(.body, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(.white)
+            }
+            if state.isRecording {
+                RecordingActivityButtons()
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 }

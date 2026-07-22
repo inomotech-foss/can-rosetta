@@ -585,7 +585,7 @@ final class RecordingController: ObservableObject {
               let activity = liveActivity as? Activity<RecordingActivityAttributes> else { return }
         liveActivity = nil
         let content = ActivityContent(state: activityContentState(), staleDate: nil)
-        Task { await activity.end(content, dismissalPolicy: .default) }
+        Task { await activity.end(content, dismissalPolicy: ActivityUIDismissalPolicy.default) }
     }
 
     // MARK: - Pre-flight monitors

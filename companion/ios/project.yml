@@ -119,12 +119,15 @@ targets:
   # Widget + Live Activity extension. iOS 26 shows an app's widgets and Live
   # Activities on the CarPlay Dashboard without any CarPlay entitlement, so this
   # target is the companion's driver-visible surface in the car. Floors at
-  # iOS 17.0: interactive widgets (Button(intent:)) need 17, and Live Activity
-  # UI ships in the same extension.
+  # iOS 18.0: the CarPlay Live Activity requires the `.small` activity family
+  # (`supplementalActivityFamilies` / `\.activityFamily`), which landed in iOS 18
+  # for the Apple Watch Smart Stack and is reused by CarPlay on iOS 26. (The
+  # older iOS 17 needs — interactive widgets via `Button(intent:)` and the Live
+  # Activity UI — are all still satisfied at 18.)
   CanRosettaWidgets:
     type: app-extension # extension point: com.apple.widgetkit-extension (see `info`)
     platform: iOS
-    deploymentTarget: "17.0"
+    deploymentTarget: "18.0"
     sources:
       # Same convention as the app: Info.plist / entitlements are generated
       # from the blocks below, so keep the checked-in files out of the build.
