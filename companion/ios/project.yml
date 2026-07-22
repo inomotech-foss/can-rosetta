@@ -32,6 +32,21 @@ targets:
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
+    # NEHotspotConfiguration (Remote/WifiJoiner.swift) needs the Hotspot
+    # Configuration entitlement. It is *unmanaged* — any paid developer account
+    # can sign it, no special Apple approval. Like Info.plist, the generated
+    # file is checked in (keep both in sync).
+    entitlements:
+      path: CanRosettaCompanion/CanRosettaCompanion.entitlements
+      properties:
+        com.apple.developer.networking.HotspotConfiguration: true
+        # Access Wi-Fi Information — required by NEHotspotNetwork.fetchCurrent
+        # (TN3111), which verifies the SSID after the join. Also unmanaged.
+        com.apple.developer.networking.wifi-info: true
+        # App Group shared with the CanRosettaWidgets extension: the widget
+        # timeline reads the RecordingSnapshot the app publishes. Also unmanaged.
+        com.apple.security.application-groups:
+          - group.com.inomotech.canrosetta.companion
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.inomotech.canrosetta.companion
@@ -46,18 +61,9 @@ targets:
       # second scheme needed. The extension floors at iOS 17 while the app stays
       # at 16; on iOS 16 the app runs and the extension is simply never offered.
       - target: CanRosettaWidgets
-    # App Groups is an "unmanaged capability": XcodeGen has no capabilities UI,
-    # so it is declared directly via a checked-in entitlements file (generated
-    # from `properties` below, like Info.plist). Automatic signing registers the
-    # group; CI is unaffected because it builds with CODE_SIGNING_ALLOWED=NO.
-    # The group carries the RecordingSnapshot the widget timeline reads.
-    entitlements:
-      path: CanRosettaCompanion/CanRosettaCompanion.entitlements
-      properties:
-        com.apple.security.application-groups:
-          - group.com.inomotech.canrosetta.companion
-    # System frameworks (CoreMotion, CoreLocation, AVFoundation) are linked
-    # automatically by the Swift compiler via module autolinking on `import`.
+    # System frameworks (CoreMotion, CoreLocation, AVFoundation,
+    # NetworkExtension) are linked automatically by the Swift compiler via
+    # module autolinking on `import`.
     info:
       path: CanRosettaCompanion/Info.plist
       properties:
@@ -92,6 +98,9 @@ targets:
           NSAllowsLocalNetworking: true
         UIBackgroundModes:
           - location
+        # Keeps Wi-Fi up while the app is frontmost during a session — iOS
+        # otherwise drops a no-internet AP (like the AutoPi's) on idle.
+        UIRequiresPersistentWiFi: true
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         # Live Activity of the running recording. iOS 26 surfaces Live
