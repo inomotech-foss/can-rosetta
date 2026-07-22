@@ -58,6 +58,16 @@ class EdgeConfig:
     control_port: int = 8765
     control_token: str = ""               # pre-shared bearer token; "" disables auth (dev only)
 
+    # --- pairing (the v2 QR payload embeds the Wi-Fi AP credentials; see pairing.py) ---
+    wifi_ssid: str = ""                   # manual override of the AP SSID for the payload
+    wifi_psk: str = ""                    # manual override of the AP passphrase (needs both)
+    # auto-read source when the overrides are unset: AutoPi Core writes the AP's
+    # ssid= / wpa_passphrase= into its hostapd config
+    hostapd_conf: str = "/etc/hostapd/hostapd.conf"
+
+    # --- speaker chirps (audible "ready" / "phone connected" cues; see audio.py) ---
+    chirp: bool = True                    # master switch for the readiness/connect chirps
+
     # --- power management ---
     prevent_sleep: bool = True            # hold the AutoPi awake while a job runs
 

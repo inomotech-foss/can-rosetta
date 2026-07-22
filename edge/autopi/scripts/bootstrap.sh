@@ -45,6 +45,12 @@ else
 fi
 mkdir -p /data/canrosetta/sessions
 
+# The service listens on the config's control_port, which on a re-run with a
+# kept config may differ from $PORT (this run's env/default) — read it back so
+# the firewall permit below always matches what serve actually binds.
+CFG_PORT="$(awk '$1 == "control_port:" {print $2; exit}' "$CFG" 2>/dev/null || true)"
+PORT="${CFG_PORT:-$PORT}"
+
 cat > "$UNIT" <<UNITEOF
 [Unit]
 Description=CAN-Rosetta edge control service
@@ -53,6 +59,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# The AutoPi hotspot firewall default-drops INPUT on uap0 except 22/53/67/80,
+# so the phone can't reach the control port without this permit. Idempotent
+# (-C checks before -I inserts), guarded on iptables existing, and the '-'
+# prefix means a failure never blocks the service from starting.
+ExecStartPre=-/bin/sh -c 'command -v iptables >/dev/null && { iptables -C INPUT -i uap0 -p tcp --dport ${PORT} -j ACCEPT || iptables -I INPUT -i uap0 -p tcp --dport ${PORT} -j ACCEPT; }'
 ExecStart=${CANBIN} serve --config ${CFG}
 Restart=always
 RestartSec=2
@@ -71,3 +82,8 @@ echo
 "$CANBIN" --config "$CFG" pairing || true
 echo
 echo "    From now on, update from the phone (Settings → Update AutoPi) — no SSH needed."
+echo
+echo "    NOTE: the unit opens TCP ${PORT} on uap0 at each start (the AutoPi hotspot"
+echo "    firewall default-drops other inbound ports). For a permit that survives"
+echo "    AutoPi Cloud config re-syncs, add the same rule in AutoPi Cloud >"
+echo "    Advanced Settings (firewall permits)."

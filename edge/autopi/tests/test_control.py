@@ -119,6 +119,43 @@ def test_websocket_streams_events(tmp_path):
     asyncio.run(run())
 
 
+def test_startup_fires_ready_chirp(tmp_path, monkeypatch):
+    from canrosetta_edge import control
+
+    chirps = []
+    monkeypatch.setattr(control, "chirp_ready", lambda cfg: chirps.append("ready"))
+
+    async def run():
+        client, _ = _make_client(tmp_path)
+        async with client:  # starting the test server runs on_startup
+            assert chirps == ["ready"]
+
+    asyncio.run(run())
+
+
+def test_first_authorized_request_chirps_connected_once(tmp_path, monkeypatch):
+    from canrosetta_edge import control
+
+    chirps = []
+    monkeypatch.setattr(control, "chirp_connected", lambda cfg: chirps.append("connected"))
+
+    async def run():
+        client, _ = _make_client(tmp_path)
+        auth = {"Authorization": f"Bearer {TOKEN}"}
+        async with client:
+            await client.get("/api/health")  # unauthenticated liveness: no chirp
+            assert chirps == []
+            r = await client.get("/api/status")  # unauthorized: no chirp either
+            assert r.status == 401 and chirps == []
+            await client.get("/api/status", headers=auth)  # first real client
+            assert chirps == ["connected"]
+            await client.get("/api/status", headers=auth)  # still exactly once
+            await client.get("/api/time", headers=auth)
+            assert chirps == ["connected"]
+
+    asyncio.run(run())
+
+
 def test_version_endpoint_reports_current(tmp_path):
     async def run():
         client, _ = _make_client(tmp_path)
