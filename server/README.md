@@ -42,7 +42,7 @@ identify ../datasets/sample-session` works out of the box.
 | 3 extract | `extract.py` | enumerate bit-field candidates per arbitration ID, drop counters/checksums |
 | 4 identify | `identify.py` | correlate candidates against references (GPS/IMU/OBD/dashboard), rank, fit scale/offset |
 | perception | `perception/` | dashboard video/stills → label streams (OCR digits, telltale on/off, needle angle, gear) |
-| 5 model | `model/` | tokenizer + behavioral fingerprints (numpy) and a torch masked-byte pretraining scaffold |
+| 5 model | `model/` | tokenizer + behavioral fingerprints (numpy) and a torch masked-byte pretraining pipeline (`canrosetta pretrain`, see `model/train.py`) |
 | export | `dbc.py` | write confident mappings as a DBC |
 
 `references.py` builds the "known" signals; `session.py` loads a session;
