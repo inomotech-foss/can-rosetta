@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "canrosetta-edge"
-version = "0.1.0"
+version = "0.2.0"
 description = "CAN-Rosetta edge (in-vehicle) component: read-only CAN/OBD/UDS discovery + logging for the AutoPi"
 readme = "README.md"
 requires-python = ">=3.8"
