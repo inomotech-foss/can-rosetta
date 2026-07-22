@@ -12,8 +12,10 @@ of the package works without it.
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 
+from .audio import chirp_connected, chirp_ready
 from .engine import Busy, Engine
 from .session import SW_VERSION
 
@@ -39,9 +41,20 @@ def create_app(engine: Engine, token: str = ""):
             return header[len("Bearer "):] == token
         return request.query.get("token") == token  # for the WS handshake
 
+    # One-shot per process lifetime: the first *authorized* request is the
+    # moment we know the phone actually reached the device over the AP, so we
+    # give the driver an audible confirmation. Health checks don't count (they
+    # are unauthenticated liveness polling, not a phone pairing).
+    first_client_seen = threading.Event()
+
     @web.middleware
     async def auth_mw(request, handler):
-        if request.path in _UNAUTH_PATHS or _authorized(request):
+        if request.path in _UNAUTH_PATHS:
+            return await handler(request)
+        if _authorized(request):
+            if not first_client_seen.is_set():
+                first_client_seen.set()
+                chirp_connected(engine.config)
             return await handler(request)
         return web.json_response({"error": "unauthorized"}, status=401)
 
@@ -163,8 +176,16 @@ def create_app(engine: Engine, token: str = ""):
             unsubscribe()
         return ws
 
+    async def _announce_ready(app):
+        # serve-startup == ignition-ready on an AutoPi (the SPM wakes the device
+        # on ignition voltage rise and systemd starts us right away), so chirp
+        # the moment the API starts accepting — the driver's cue to pull out
+        # the phone, with no screen involved.
+        chirp_ready(engine.config)
+
     app = web.Application(middlewares=[auth_mw])
     app.add_routes(routes)
+    app.on_startup.append(_announce_ready)
     return app
 
 

@@ -4,7 +4,10 @@ The companion phone steers the AutoPi over a small **local HTTP + WebSocket API*
 that the AutoPi serves on its own network (typically the AutoPi's WiFi access
 point, to which the phone connects). It is **peer-to-peer and offline** — no
 internet and no external server are involved, consistent with the rest of the
-system. The AutoPi is the server; the phone is the client.
+system. The AutoPi is the server; the phone is the client. How the phone gets
+onto that network in the first place — the pairing payload carries the AP
+credentials and the app joins programmatically — is covered in
+[connection.md](connection.md).
 
 This lets the driver, from the phone, start an investigation, pick the discovery
 mode (fast / brute-force), and start/stop recording — and it solves two things
@@ -21,6 +24,15 @@ pre-shared `control_token` from the AutoPi's config (entered once in the phone
 app when pairing). If the AutoPi is configured with an empty token, auth is
 disabled (development only) and it logs a warning. Requests without a valid token
 get `401`.
+
+## Chirps
+
+The edge plays two short, **best-effort** speaker chirps (tones at 1–4 kHz, the
+speaker's sweet spot; disable with `chirp: false`): one when `serve` starts —
+the AutoPi wakes on ignition, so this is the driver's "logger is ready" cue —
+and one when the **first authenticated client request** arrives, confirming the
+phone got through WiFi join and auth. A missing speaker never blocks anything.
+Details in [connection.md](connection.md#chirps).
 
 ## State machine
 

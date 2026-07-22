@@ -57,6 +57,9 @@ shared session, picks the discovery mode (fast / brute-force), starts the
 investigation, and starts/stops recording on both devices at once. The handshake
 also carries a **time sync** (Cristian's algorithm) that pins the two clocks
 together before the drive, shrinking the residual offset the server must recover.
+Getting the phone onto the AutoPi's WiFi is a one-time QR scan — the pairing
+payload carries the AP credentials, the app joins programmatically, and the edge
+chirps when it is ready (see [connection.md](connection.md)).
 
 This does not reintroduce a server dependency in the vehicle — it is strictly
 peer-to-peer between the two devices, and both still record fully to local disk.

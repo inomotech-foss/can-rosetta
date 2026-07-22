@@ -17,26 +17,50 @@ curl -fsSL https://raw.githubusercontent.com/inomotech-foss/can-rosetta/main/edg
 ```
 
 It writes `/etc/canrosetta/config.yaml` with a generated **control token**, starts
-`canrosetta-edge serve`, and prints a QR payload:
+`canrosetta-edge serve`, and prints a QR payload (**v2** — normative schema:
+[`pairing_payload.schema.json`](../schemas/pairing_payload.schema.json)):
 
 ```json
-{ "host": "http://<autopi-ip>:8765", "token": "<generated-token>" }
+{ "host": "http://192.168.4.1:8765", "token": "<generated-token>",
+  "wifi": { "ssid": "AutoPi-<last12>", "psk": "<ap passphrase>" } }
 ```
 
-Show that as a QR on the AutoPi's config page (or copy the token). That's the last
+The `wifi` block carries the AutoPi's access-point credentials so the app can
+join the network by itself; it is **omitted when they are unknown** (dev boxes
+without an AP), and consumers then behave exactly as with the v1 payload. Show
+that as a QR on the AutoPi's config page (or copy the token). That's the last
 time you need a shell on the device.
+
+Two more things the bootstrap sets up (details in
+[connection.md](connection.md)):
+
+- **Firewall.** The AutoPi's stock hotspot firewall default-drops all inbound
+  `uap0` traffic except ports 22/53/67/80, which would silently break the
+  control port. The installed systemd unit opens the port with an idempotent
+  `ExecStartPre` iptables rule on **every service start**; for a rule that also
+  survives AutoPi Cloud config re-syncs, add the same permit under **AutoPi
+  Cloud → Advanced Settings**.
+- **Ready chirp.** Once bootstrapped, the edge chirps its speaker when `serve`
+  comes up — and since the AutoPi wakes on ignition, that chirp is the "it's
+  ready" signal at the start of every drive.
 
 ## Step 2 — pair from the phone
 
 The AutoPi is **headless — there's no screen to show a QR**. So the edge prints
 the pairing details to your SSH terminal (on `serve` startup, or any time via
 `canrosetta-edge --config /etc/canrosetta/config.yaml pairing`): the **host**, the
-**control token**, and a **scannable ASCII QR**. In the companion app's **Pair
-AutoPi** screen either:
+**control token**, the **AP WiFi credentials** when known, and a **scannable
+ASCII QR**. In the companion app's **Pair AutoPi** screen either:
 
 - **scan that terminal QR**, or
 - **enter Host + Token manually** (on the AutoPi Wi-Fi AP the host is usually
   `http://192.168.4.1:8765`; the token is the one the installer generated).
+
+When the payload carries the `wifi` block, scanning it also **joins the phone
+to the AutoPi's access point automatically** (Android `WifiNetworkSpecifier`,
+iOS `NEHotspotConfiguration`) — no trip to the WiFi settings. Without it, join
+the AP manually first; pairing itself is unchanged. See
+[connection.md](connection.md) for the full flow and the per-platform friction.
 
 Either way it verifies the token and pins the clocks (Cristian's algorithm).
 

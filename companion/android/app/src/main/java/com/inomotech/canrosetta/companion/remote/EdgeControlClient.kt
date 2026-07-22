@@ -5,6 +5,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -17,6 +18,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
+import javax.net.SocketFactory
 
 // MARK: - Wire models (match docs/control-protocol.md)
 
@@ -68,14 +70,42 @@ class EdgeException(message: String, val statusCode: Int? = null) : Exception(me
 /**
  * Client for the AutoPi control protocol (`docs/control-protocol.md`) over
  * OkHttp. Holds only host + token, so it can be recreated cheaply whenever the
- * pairing settings change (the OkHttp clients themselves are shared singletons).
+ * pairing settings change (the unbound OkHttp clients are shared singletons).
  *
  * HTTP requests carry `Authorization: Bearer <token>`; the WebSocket carries the
  * token both as an `Authorization` header and a `?token=` query param.
+ *
+ * When the phone joined the AutoPi AP via [WifiJoiner], pass the peer network's
+ * `socketFactory` so ALL control traffic (HTTP + WebSocket) is bound to that
+ * network. This is required, not an optimisation: a `WifiNetworkSpecifier`
+ * network is app-scoped and never becomes the device default, so unbound
+ * sockets would route over the default (internet) network and never reach
+ * 192.168.4.1. DNS is not a concern — the host is a literal IP.
  */
-class EdgeControlClient(host: String, private val token: String) {
+class EdgeControlClient(
+    host: String,
+    private val token: String,
+    socketFactory: SocketFactory? = null,
+) {
 
     private val baseUrl: String = host.trim().trimEnd('/')
+
+    // Network-bound clients must NOT share the singleton ConnectionPool: the
+    // pool key ignores socketFactory, so a pooled keep-alive socket from a dead
+    // AP network would be reused after a rejoin — a socket from the old network
+    // must never serve the new one. One private pool per client instance keeps
+    // reuse within a network epoch (EdgeConnection caches the client per epoch).
+    private val boundPool: ConnectionPool? = socketFactory?.let { ConnectionPool() }
+
+    // Derived via newBuilder() so the per-network clients still share the
+    // singletons' dispatcher — recreating EdgeControlClient stays cheap.
+    private val http: OkHttpClient =
+        if (socketFactory == null || boundPool == null) httpClient
+        else httpClient.newBuilder().socketFactory(socketFactory).connectionPool(boundPool).build()
+
+    private val ws: OkHttpClient =
+        if (socketFactory == null || boundPool == null) wsClient
+        else wsClient.newBuilder().socketFactory(socketFactory).connectionPool(boundPool).build()
 
     companion object {
         private val JSON = "application/json; charset=utf-8".toMediaType()
@@ -175,8 +205,8 @@ class EdgeControlClient(host: String, private val token: String) {
                 close()
             }
         }
-        val ws = wsClient.newWebSocket(buildWsRequest(), listener)
-        awaitClose { ws.cancel() }
+        val socket = ws.newWebSocket(buildWsRequest(), listener)
+        awaitClose { socket.cancel() }
     }
 
     // MARK: Request plumbing
@@ -208,7 +238,7 @@ class EdgeControlClient(host: String, private val token: String) {
 
     private suspend fun execute(request: Request): JSONObject = withContext(Dispatchers.IO) {
         val response = try {
-            httpClient.newCall(request).execute()
+            http.newCall(request).execute()
         } catch (e: IOException) {
             throw EdgeException("Network error: ${e.message}")
         }

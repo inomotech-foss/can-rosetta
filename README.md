@@ -46,7 +46,10 @@ Three components, one shared [session data format](docs/data-format.md):
 
 The two in-vehicle devices coordinate peer-to-peer over a local, offline
 [control link](docs/control-protocol.md) (the AutoPi serves; the phone drives) —
-no internet or server needed in the car. The server processes uploaded sessions
+no internet or server needed in the car. Connecting is one QR scan: the pairing
+payload carries the AutoPi's WiFi credentials, the phone joins the AP
+programmatically, and the AutoPi chirps when it is ready (see
+[docs/connection.md](docs/connection.md)). The server processes uploaded sessions
 afterward. Real-world `candump -L` logs can be imported straight into the
 pipeline with `canrosetta import-candump`.
 

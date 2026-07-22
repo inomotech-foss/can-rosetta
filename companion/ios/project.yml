@@ -22,13 +22,26 @@ targets:
     platform: iOS
     deploymentTarget: "16.0"
     sources:
-      # Exclude the hand-written Info.plist; XcodeGen generates it from `info`.
+      # Exclude the checked-in Info.plist and entitlements; XcodeGen generates
+      # them from the `info` / `entitlements` blocks below.
       - path: CanRosettaCompanion
         excludes:
           - "Info.plist"
+          - "CanRosettaCompanion.entitlements"
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
+    # NEHotspotConfiguration (Remote/WifiJoiner.swift) needs the Hotspot
+    # Configuration entitlement. It is *unmanaged* — any paid developer account
+    # can sign it, no special Apple approval. Like Info.plist, the generated
+    # file is checked in (keep both in sync).
+    entitlements:
+      path: CanRosettaCompanion/CanRosettaCompanion.entitlements
+      properties:
+        com.apple.developer.networking.HotspotConfiguration: true
+        # Access Wi-Fi Information — required by NEHotspotNetwork.fetchCurrent
+        # (TN3111), which verifies the SSID after the join. Also unmanaged.
+        com.apple.developer.networking.wifi-info: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.inomotech.canrosetta.companion
@@ -37,8 +50,9 @@ targets:
         # Code signing lives in Signing.xcconfig (automatic). Xcode signs device
         # builds; the Simulator needs none. CI passes CODE_SIGNING_ALLOWED=NO on
         # the xcodebuild command line, which cleanly disables signing there.
-    # System frameworks (CoreMotion, CoreLocation, AVFoundation) are linked
-    # automatically by the Swift compiler via module autolinking on `import`.
+    # System frameworks (CoreMotion, CoreLocation, AVFoundation,
+    # NetworkExtension) are linked automatically by the Swift compiler via
+    # module autolinking on `import`.
     info:
       path: CanRosettaCompanion/Info.plist
       properties:
@@ -73,6 +87,9 @@ targets:
           NSAllowsLocalNetworking: true
         UIBackgroundModes:
           - location
+        # Keeps Wi-Fi up while the app is frontmost during a session — iOS
+        # otherwise drops a no-internet AP (like the AutoPi's) on idle.
+        UIRequiresPersistentWiFi: true
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
 
