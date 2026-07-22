@@ -37,6 +37,10 @@ Location (`CLLocation` → record):
 
 - `lat`, `lon`, `alt`; `speed` (m/s, `-1` if unknown); `course`
   (deg from true north, `-1` if unknown); `h_acc`, `v_acc` (m); `t_utc`
+- `produced_by_accessory` = `CLLocation.sourceInformation.isProducedByAccessory`
+  (optional; omitted when iOS reports no source info) — flags fixes that came
+  from the car, not the phone (wireless CarPlay feeds vehicle GNSS into
+  CoreLocation), so the server can downgrade them as non-independent references
 
 Idiomatic camelCase Swift properties (`tUtc`, `hAcc`) are serialised with
 `JSONEncoder.keyEncodingStrategy = .convertToSnakeCase`, so they land on the
@@ -165,6 +169,33 @@ never configures or starts `EdgeConnection`.
 Two animations: `recBlink` (the REC dot, 1.2 s) and `halGlow` (the HAL eye's
 scale + red shadow, ~2.4 s), both via `.repeatForever(autoreverses:)`.
 
+## Car projection (CarPlay)
+
+There is **no full CarPlay app** — that needs the
+`com.apple.developer.carplay-driving-task` entitlement, whose application is
+pending (granted to the developer account, not the repo). What ships is the
+entitlement-free fast path, per [`docs/car-projection.md`](../../docs/car-projection.md):
+
+- an **interactive widget** (recording status, live-ticking timer, IMU/GPS
+  counters, **Stop** via App Intents; idle it deep-links into the app — start
+  needs the pre-flight flow, so it is deliberately *not* a button) and a
+  **Live Activity** for the running recording (Stop + Pin sync marker) — from
+  **iOS 26** both appear on the **CarPlay Dashboard** as-is. They live in a
+  second target, `CanRosettaWidgets` (WidgetKit extension, iOS 17+), built as an
+  embedded dependency of the app — same single CI scheme. Only the app process
+  sees the sensors: it publishes a compact `RecordingSnapshot` into the App
+  Group `group.com.inomotech.canrosetta.companion` (~1 Hz) for the widget
+  timeline, and pushes throttled Live Activity updates (significant change or
+  ~5 s; elapsed ticks locally in the extension). The buttons are
+  `LiveActivityIntent`s (shared types in `CanRosettaCompanion/Shared/`, compiled
+  into both targets) performed **in the app's process** — alive for the whole
+  drive thanks to background location; a widget-initiated stop is phone-side
+  only (a paired AutoPi keeps logging until the hand-off flow stops it);
+- **GPS provenance tagging** (`produced_by_accessory`, above): CarPlay forwards
+  no vehicle data to apps, but wireless-CarPlay head units *do* fuse vehicle
+  GNSS into CoreLocation — the tag keeps that from silently masquerading as an
+  independent phone reference.
+
 ## Remote control of the AutoPi
 
 The app can steer the AutoPi over its **local HTTP + WebSocket control API**
@@ -268,6 +299,9 @@ Declared in `Info.plist`:
 - `NSCameraUsageDescription` — dashboard video and/or full-resolution stills
 - `UIBackgroundModes: [location]` — keep recording when backgrounded/screen off
 - `UIFileSharingEnabled` / `LSSupportsOpeningDocumentsInPlace` — sessions visible in the Files app
+- `NSSupportsLiveActivities` — the recording Live Activity (CarPlay Dashboard on iOS 26)
+- App Group `group.com.inomotech.canrosetta.companion` (checked-in `.entitlements`
+  on both targets, generated from `project.yml`) — the widget's snapshot channel
 
 ## Session id handshake
 

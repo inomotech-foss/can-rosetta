@@ -21,6 +21,7 @@ true acquisition time. Alignment and decoding are the server's job.
 | `phone/video_index.jsonl`   | CameraX `ImageAnalysis` frame timestamps| per frame | (optional) |
 | `phone/photos/NNNNNN.jpg`   | CameraX `ImageCapture` full-res         | ~0.5 s    | (optional) |
 | `phone/photos_index.jsonl`  | photo capture time → `t_utc`            | per still | [`photo_index.record`](../../schemas/photo_index.record.schema.json) |
+| `phone/car_hw.jsonl`        | Android Auto `CarHardwareManager`       | per callback | [`car_hw.record`](../../schemas/car_hw.record.schema.json) (optional) |
 | `manifest.json`             | assembled at stop                       | —         | [`manifest`](../../schemas/manifest.schema.json) |
 
 ### Field mapping (matches the schemas exactly)
@@ -123,6 +124,30 @@ the measured clock offset, live edge status and the coordinated start/stop:
 
 The shared `session_id` is single-sourced from `RecordingController.sessionId`
 (the phone mints it).
+
+## Car projection (Android Auto)
+
+The app carries a templated **Android Auto car app** (category
+`androidx.car.app.category.IOT`) — design and platform limits in
+[`docs/car-projection.md`](../../docs/car-projection.md):
+
+- **Status + coordinated start/stop on the head unit**, driving the same
+  `RecordingController`/`EdgeConnection` as the phone UI (templates only — the
+  Android Auto host throttles refreshes to ~1 s and allows no custom canvas).
+- **Car-hardware reference logging**: while the car app is connected, every
+  `CarHardwareManager` source (model, energy, speed, mileage, car GNSS,
+  accelerometer/gyroscope/compass) is logged to `phone/car_hw.jsonl` — **one
+  record per callback/fetch, including `unavailable`/`unimplemented`/`error`**.
+  The non-success records are the point: they measure what a given OEM head
+  unit actually forwards (the eVito MBUX spike). Each source sits behind its
+  own `com.google.android.gms.permission.CAR_*` permission, declared in the
+  app manifest.
+- `car_hw.jsonl` is optional and only created on first record; when present it
+  is listed in `manifest.json` as a stream of kind `car_hw` — sessions
+  recorded without Android Auto are unchanged.
+- **Distribution reality**: templated car apps cannot be sideloaded onto a real
+  head unit (the desktop head-unit emulator works for development); use the
+  **Play internal-testing track**, which needs no car-app review.
 
 ## Build
 

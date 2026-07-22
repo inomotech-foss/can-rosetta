@@ -48,6 +48,10 @@ class DriveFlowViewModel(
      * pre-flight.
      */
     fun confirmPaired() {
+        // Singleton controller is reused across drives; mint a fresh session id
+        // as this drive's setup begins — before the coordinated flow reads
+        // sessionId and sends it to the edge — so each drive gets its own dir.
+        controller.newSessionId()
         _mode.value = Mode.PAIRED
         controller.startPreflight()
         if (connection.isConfigured() && !connection.isConnected()) {
@@ -58,6 +62,9 @@ class DriveFlowViewModel(
 
     /** Enter the flow phone-only — no pairing, no [EdgeConnection] involvement. */
     fun recordStandalone() {
+        // Singleton controller is reused across drives; mint a fresh session id
+        // as this drive's setup begins so each drive gets its own dir.
+        controller.newSessionId()
         _mode.value = Mode.STANDALONE
         controller.startPreflight()
         _phase.value = Phase.PREFLIGHT

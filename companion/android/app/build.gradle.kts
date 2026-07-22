@@ -84,6 +84,24 @@ dependencies {
     // Fused location
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
+    // Android for Cars app library (Android Auto projection). 1.7.0+ fixes
+    // CVE-2024-10382: earlier versions' template host validation could be
+    // bypassed, letting a malicious app impersonate the Android Auto host.
+    implementation("androidx.car.app:app:1.7.0")
+    implementation("androidx.car.app:app-projected:1.7.0")
+    // car.app depends on full Guava at RUNTIME, whose metadata pins
+    // com.google.guava:listenablefuture to the empty 9999 stub. Gradle's
+    // consistent resolution then applies that pin to the COMPILE classpath,
+    // where full Guava is absent — hiding ListenableFuture from the CameraX
+    // call sites. Declaring Guava here restores the class at compile time; the
+    // APK is unchanged (the same Guava was already on the runtime classpath).
+    implementation("com.google.guava:guava:31.1-android")
+
+    // ProcessLifecycleOwner — the process-wide LifecycleOwner handed to
+    // RecordingController now that it outlives MainActivity (see
+    // CanRosettaApplication).
+    implementation("androidx.lifecycle:lifecycle-process:2.8.3")
+
     // On-device QR decoding for the pairing viewfinder (CameraX ImageAnalysis feed).
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
 
@@ -96,4 +114,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
+    // Real org.json for pure-JVM tests of record/manifest serialisation (the
+    // mockable android.jar only ships throwing stubs).
+    testImplementation("org.json:json:20240303")
 }

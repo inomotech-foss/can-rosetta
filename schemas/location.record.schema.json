@@ -13,6 +13,10 @@
     "speed": { "type": "number", "description": "m/s over ground, -1 if unknown" },
     "course": { "type": "number", "description": "deg from true north, -1 if unknown" },
     "h_acc": { "type": "number" },
-    "v_acc": { "type": "number" }
+    "v_acc": { "type": "number" },
+    "produced_by_accessory": {
+      "type": "boolean",
+      "description": "iOS only (CLLocation.sourceInformation.isProducedByAccessory); omitted when unknown, never written by Android. true means the fix came from an external accessory rather than the phone's own GNSS — wireless CarPlay head units transparently feed vehicle GNSS into CoreLocation, so a docked iPhone's 'phone GPS' may really be the car's and is then NOT an independent reference against the CAN bus."
+    }
   }
 }

@@ -18,6 +18,17 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>0.1.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.inomotech.canrosetta.companion</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>canrosetta</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
@@ -37,6 +48,8 @@
 	<string>CAN-Rosetta records GPS position, speed and course while you drive, as ground-truth for aligning and decoding the vehicle's CAN bus.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>CAN-Rosetta records accelerometer, gyroscope and attitude while you drive. These motion samples are the known reference used to decode the vehicle's CAN bus.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

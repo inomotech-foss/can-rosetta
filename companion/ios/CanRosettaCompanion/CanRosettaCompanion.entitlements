@@ -8,5 +8,11 @@
 	     (TN3111) in Remote/WifiJoiner.swift. Keep in sync with project.yml. -->
 	<key>com.apple.developer.networking.wifi-info</key>
 	<true/>
+	<!-- App Group shared with the CanRosettaWidgets extension: the widget
+	     timeline reads the RecordingSnapshot the app publishes. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.inomotech.canrosetta.companion</string>
+	</array>
 </dict>
 </plist>

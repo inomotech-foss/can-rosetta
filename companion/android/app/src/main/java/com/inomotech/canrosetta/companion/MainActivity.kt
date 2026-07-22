@@ -33,8 +33,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        controller = RecordingController(applicationContext, this)
-        connection = EdgeConnection(applicationContext)
+        // The controller/connection are process singletons owned by the
+        // application (the Android Auto car session must reach them without
+        // this activity existing); the drive-flow navigation state stays
+        // activity-scoped as before.
+        val app = application as CanRosettaApplication
+        controller = app.recordingController
+        connection = app.edgeConnection
         flow = DriveFlowViewModel(controller, connection)
         controller.setLocationPermissionGranted(hasPermission(Manifest.permission.ACCESS_FINE_LOCATION))
 

@@ -19,11 +19,35 @@
     <!-- Dashboard video and/or full-resolution stills. -->
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Keep recording with the phone locked/pocketed while the car screen is
+         the UI: a foreground service holds the process alive for the session.
+         Typed sub-permissions are required on API 34 for the declared
+         foregroundServiceType below; POST_NOTIFICATIONS lets the mandatory
+         status notification actually show on 13+ (the service still runs if
+         the user declines — the notification is just hidden). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Car-data permissions for the car_hw.jsonl reference stream. The GMS
+         `CAR_*` permissions gate the projected (Android Auto) car-hardware
+         APIs: speed, odometer, and energy/fuel level respectively.
+         `android.car.permission.CAR_INFO` is the Android Automotive OS
+         equivalent gating the vehicle model — harmless on phones, and it keeps
+         the same APK honest if it ever runs on AAOS. All are requested at
+         runtime from the car screen (parked only). -->
+    <uses-permission android:name="com.google.android.gms.permission.CAR_SPEED" />
+    <uses-permission android:name="com.google.android.gms.permission.CAR_MILEAGE" />
+    <uses-permission android:name="com.google.android.gms.permission.CAR_FUEL" />
+    <uses-permission android:name="android.car.permission.CAR_INFO" />
+
     <!-- Camera is optional: the app still records IMU/GPS without it. -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <application
+        android:name=".CanRosettaApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -44,6 +68,39 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Android Auto entry point. Category IOT because the app's job on the
+             car screen is supervising a connected device (the AutoPi CAN
+             logger) — the same category OBD companions like OBDeleven ship
+             under; we are not a navigation or media app. -->
+        <service
+            android:name=".car.CanRosettaCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.IOT" />
+            </intent-filter>
+        </service>
+
+        <!-- Keeps a recording session alive while the phone is locked and the
+             car screen is the only UI. Type `location` because the session
+             streams GPS; `dataSync` covers the IMU/car-data capture so the
+             service can still run when the location grant is missing. -->
+        <service
+            android:name=".recording.RecordingForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location|dataSync" />
+
+        <!-- Car API level 3 is the floor for the car-hardware APIs
+             (CarHardwareManager: CarInfo + CarSensors). -->
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="3" />
+
+        <!-- Declares the Android Auto capability (template app) to the host. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
 
         <!-- Share the exported session zip via a content:// URI. -->
         <provider

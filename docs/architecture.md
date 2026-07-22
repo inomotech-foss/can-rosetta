@@ -76,6 +76,21 @@ indicators) and as an independent cross-check.
 While discovering or logging, the AutoPi holds a **wake lock** so its power
 manager never sleeps the device mid-recording.
 
+## Car projection (head-unit surface)
+
+Both companion apps also project into the car, for two reasons: the head unit
+is the only screen a driver may lawfully glance at, and — on Android — it is a
+**fourth reference source**. The Android companion ships a templated Android
+Auto car app that mirrors recording status and coordinated start/stop onto the
+head unit and logs whatever vehicle data the head unit forwards
+(`CarHardwareManager` → `phone/car_hw.jsonl`, every response logged including
+`unavailable` — per-OEM availability is itself the measurement). The iOS
+companion ships an interactive widget + Live Activity that appear on the
+CarPlay Dashboard from iOS 26 (CarPlay forwards no vehicle data to apps), and
+tags GPS fixes that were produced by the car rather than the phone
+(`produced_by_accessory`). Design, platform limits, and the MBUX availability
+spike: [`car-projection.md`](car-projection.md).
+
 ## Data flow contract
 
 1. Edge and companion each record a session *part* keyed by a shared
@@ -93,7 +108,7 @@ can-rosetta/
 ├── docs/           architecture, methodology, data format, roadmap
 ├── schemas/        JSON Schemas for every session file (normative, CI-checked)
 ├── edge/autopi/    in-vehicle app: discovery + logging (Python)
-├── companion/ios/  iPhone app: sensors + video (Swift/SwiftUI)
+├── companion/      phone apps (ios/, android/): sensors + video + car projection
 ├── server/         alignment + identification + model (Python)
 └── datasets/       tiny synthetic sample sessions for tests & demos
 ```

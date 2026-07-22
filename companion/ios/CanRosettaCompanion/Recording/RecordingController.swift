@@ -2,6 +2,8 @@ import Foundation
 import Combine
 import CoreLocation
 import CoreMotion
+import ActivityKit
+import WidgetKit
 import os
 
 /// Orchestrates one recording session: owns the sensor sources, the writers and
@@ -104,6 +106,24 @@ final class RecordingController: ObservableObject {
     private var finalizeStreams: [Manifest.Stream] = []
     private var finalizeEndUTC: Double = 0
 
+    // CarPlay Dashboard bridge (see the MARK further down): throttle clocks for
+    // the app-group snapshot, WidgetKit reloads and Live Activity updates. All
+    // measured on `systemUptime` (monotonic — immune to wall-clock steps).
+    private var lastSnapshotWriteUptime: TimeInterval = 0
+    private var lastWidgetReloadUptime: TimeInterval = 0
+    private var lastActivityPushUptime: TimeInterval = 0
+    /// GPS accuracy (whole metres) last pushed to the Live Activity — a change
+    /// counts as "significant" and bypasses the 5 s throttle.
+    private var lastActivityAccuracyBucket: Int?
+    /// The running `Activity<RecordingActivityAttributes>`. Stored as `Any`
+    /// because stored properties cannot carry `@available`; every access casts
+    /// back inside an availability check. The floor is iOS 17.0 — not
+    /// ActivityKit's own 16.2 — because the sole target that renders this
+    /// activity (the CanRosettaWidgets extension) floors at 17.0, so requesting
+    /// one on 16.x would be a silent no-op with no card to show. (17.0 >= 16.2,
+    /// so the 16.2-era ActivityAttributes/ContentState types stay usable.)
+    private var liveActivity: Any?
+
     /// A persistent location source so we can request authorization and show
     /// GPS status before the user hits record.
     private lazy var standbyLocation: LocationSource = {
@@ -116,6 +136,24 @@ final class RecordingController: ObservableObject {
 
     init() {
         locationAuthorization = standbyLocation.authorizationStatus
+        // Wire the widget / Live Activity buttons (`LiveActivityIntent`s run in
+        // this process; the controller is app-lifetime, so registering here is
+        // safe — weak only so the broker never *retains* it).
+        RecordingWidgetActions.shared.stopRecording = { [weak self] in
+            // Phone-side stop only: when paired, the AutoPi keeps logging until
+            // the app's hand-off flow stops it — the same honest degradation as
+            // stopping with the edge link down.
+            self?.stop()
+        }
+        RecordingWidgetActions.shared.pinSyncMarker = { [weak self] in
+            guard let self, self.isRecording else { return }
+            // Same semantic as the guided SyncMarkerView step: the driver
+            // performs the triple brake-flash, then taps the button.
+            self.addSyncMarker(kind: "brake_pulse", count: 3)
+        }
+        // Publish an honest "idle" snapshot so a freshly added widget does not
+        // show placeholder data before the first drive.
+        publishSnapshot(force: true)
     }
 
     /// Ask for the permissions we need up front (motion is prompted lazily by
@@ -227,6 +265,11 @@ final class RecordingController: ObservableObject {
 
             isRecording = true
             startUITimer()
+            // Driver-visible surfaces outside the app (widget + Live Activity,
+            // shown on the iOS 26 CarPlay Dashboard). Both are best-effort and
+            // never affect the recording itself.
+            publishSnapshot(force: true)
+            startLiveActivity()
             logger.info("Recording started for session \(self.sessionId, privacy: .public)")
         } catch {
             logger.error("Failed to start recording: \(error.localizedDescription)")
@@ -241,6 +284,11 @@ final class RecordingController: ObservableObject {
         stopUITimer()
         accelGX = 0
         accelGY = 0
+        // Flip the outside surfaces to "stopped" immediately — before the async
+        // finalisation below — so the CarPlay Dashboard / widget never claims
+        // REC after the sensors are down.
+        publishSnapshot(force: true)
+        endLiveActivity()
 
         motionSource?.stop()
         locationSource?.stop()
@@ -434,6 +482,110 @@ final class RecordingController: ObservableObject {
             lastRateSampleCount = mCount
             lastRateSampleTime = now
         }
+
+        // Keep the outside surfaces current (both throttle internally; the UI
+        // timer itself runs at 4 Hz).
+        publishSnapshot()
+        updateLiveActivityIfNeeded()
+    }
+
+    // MARK: - CarPlay Dashboard bridge (widget snapshot + Live Activity)
+
+    // iOS 26 shows an app's widgets and Live Activities on the CarPlay
+    // Dashboard without any CarPlay entitlement, so these two publications are
+    // the companion's driver-visible surface in the car. The widget reads a
+    // snapshot from the shared app group; the Live Activity is pushed directly.
+
+    /// Write the compact `RecordingSnapshot` into the shared app group
+    /// (throttled to ~1 Hz) and nudge WidgetKit. Timeline reloads are
+    /// system-budgeted — unlike the defaults write — so they only happen on
+    /// state transitions (`force`) and sparsely (~30 s) mid-recording; the
+    /// widget's elapsed timer ticks locally and needs no reloads.
+    private func publishSnapshot(force: Bool = false) {
+        let uptime = ProcessInfo.processInfo.systemUptime
+        guard force || uptime - lastSnapshotWriteUptime >= 1.0 else { return }
+        lastSnapshotWriteUptime = uptime
+        RecordingSnapshot(
+            sessionId: sessionId,
+            isRecording: isRecording,
+            startedAtUTC: isRecording ? startUTC : nil,
+            // Read the writers directly: on the forced start/stop transitions
+            // the published counters can lag one UI tick (250 ms).
+            motionCount: motionWriter?.rowCount ?? motionCount,
+            locationCount: locationWriter?.rowCount ?? locationCount,
+            gpsAccuracyM: gpsHorizontalAccuracy,
+            updatedAtUTC: Date().timeIntervalSince1970
+        ).store()
+        if force || uptime - lastWidgetReloadUptime >= 30 {
+            lastWidgetReloadUptime = uptime
+            WidgetCenter.shared.reloadTimelines(ofKind: RecordingWidgetBridge.statusWidgetKind)
+        }
+    }
+
+    @available(iOS 17.0, *)
+    private func activityContentState() -> RecordingActivityAttributes.ContentState {
+        RecordingActivityAttributes.ContentState(
+            isRecording: isRecording,
+            elapsed: elapsed,
+            motionCount: motionWriter?.rowCount ?? motionCount,
+            locationCount: locationWriter?.rowCount ?? locationCount,
+            gpsAccuracy: gpsHorizontalAccuracy)
+    }
+
+    /// Start the session's Live Activity. Best-effort: authorization can be
+    /// off, the device may predate iOS 17.0 (the widget/renderer floor) —
+    /// recording proceeds regardless.
+    private func startLiveActivity() {
+        guard #available(iOS 17.0, *) else { return }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            logger.info("Live Activities disabled; recording without one")
+            return
+        }
+        // End anything leaked by a previous run (e.g. the app was killed while
+        // recording): a stale REC card on the Dashboard would shadow this one.
+        // Snapshot the list *before* requesting so the new activity is not
+        // caught by the asynchronous cleanup.
+        let stale = Activity<RecordingActivityAttributes>.activities
+        if !stale.isEmpty {
+            Task { for activity in stale { await activity.end(nil, dismissalPolicy: .immediate) } }
+        }
+        do {
+            liveActivity = try Activity<RecordingActivityAttributes>.request(
+                attributes: RecordingActivityAttributes(sessionId: sessionId),
+                content: ActivityContent(state: activityContentState(), staleDate: nil))
+            lastActivityPushUptime = ProcessInfo.processInfo.systemUptime
+            lastActivityAccuracyBucket = gpsHorizontalAccuracy.map { Int($0.rounded()) }
+        } catch {
+            logger.error("Live Activity start failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Push fresh state to the Live Activity, throttled: ActivityKit
+    /// rate-limits local updates, so send only on a significant change (GPS
+    /// accuracy in whole metres) or every ~5 s (counters; the visible timer
+    /// ticks locally in the widget extension and needs no updates at all).
+    private func updateLiveActivityIfNeeded() {
+        guard #available(iOS 17.0, *),
+              let activity = liveActivity as? Activity<RecordingActivityAttributes> else { return }
+        let uptime = ProcessInfo.processInfo.systemUptime
+        let accuracyBucket = gpsHorizontalAccuracy.map { Int($0.rounded()) }
+        guard accuracyBucket != lastActivityAccuracyBucket
+                || uptime - lastActivityPushUptime >= 5.0 else { return }
+        lastActivityPushUptime = uptime
+        lastActivityAccuracyBucket = accuracyBucket
+        let content = ActivityContent(state: activityContentState(), staleDate: nil)
+        Task { await activity.update(content) }
+    }
+
+    /// End the Live Activity with a final "saved" frame. `.default` dismissal
+    /// leaves the card briefly on the lock screen so the driver sees the
+    /// session close.
+    private func endLiveActivity() {
+        guard #available(iOS 17.0, *),
+              let activity = liveActivity as? Activity<RecordingActivityAttributes> else { return }
+        liveActivity = nil
+        let content = ActivityContent(state: activityContentState(), staleDate: nil)
+        Task { await activity.end(content, dismissalPolicy: .default) }
     }
 
     // MARK: - Pre-flight monitors

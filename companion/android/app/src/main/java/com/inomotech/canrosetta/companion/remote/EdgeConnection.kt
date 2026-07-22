@@ -316,7 +316,7 @@ class EdgeConnection(context: Context) {
      * `POST /api/log/start`); only if that succeeds do we start the phone with the
      * SAME `session_id` — so we never record alone if the edge rejects the request.
      */
-    fun startRecording(controller: RecordingController) {
+    fun startRecording(controller: RecordingController, enableCamera: Boolean = true) {
         scope.launch {
             if (!ensureConfigured()) return@launch
             if (controller.status.value.isRecording) return@launch
@@ -330,7 +330,7 @@ class EdgeConnection(context: Context) {
                 update { it.copy(lastError = errorMessage(e), isBusy = false) }
                 return@launch
             }
-            controller.start() // phone side, same session_id
+            controller.start(enableCamera) // phone side, same session_id
             connect()
             update { it.copy(isBusy = false) }
             Log.i(AppInfo.TAG, "Coordinated recording started for session $sessionId")

@@ -21,6 +21,7 @@ session-<uuid>/
 ├── phone/
 │   ├── motion.jsonl         # IMU: accel, gyro, attitude, magnetometer
 │   ├── location.jsonl       # GPS: lat/lon/alt/speed/course
+│   ├── car_hw.jsonl         # optional: vehicle data the head unit forwards (Android Auto)
 │   ├── video.mp4            # optional dashboard video
 │   └── video_index.jsonl    # per-frame presentation timestamps for video.mp4
 └── labels/                  # optional ground-truth, produced later
@@ -61,7 +62,7 @@ in the IMU and in the CAN data at "the same" instant. We handle time in layers:
 Coarse alignment uses `t_utc`. The server then refines it (sub-100 ms) by
 cross-correlating physically redundant signals — e.g. OBD vehicle speed against
 GPS ground speed, or a candidate longitudinal-accel CAN signal against the phone
-accelerometer. See [`methodology.md`](methodology.md#stage-2-time-alignment).
+accelerometer. See [`methodology.md`](methodology.md#stage-2--time-alignment-server).
 
 > **Rule:** producers never resample or interpolate. Record raw samples at their
 > true acquisition time. Alignment and resampling are the server's job.
@@ -192,8 +193,54 @@ One JSON object per line, sampled at 1–10 Hz.
   "lat": 48.13712, "lon": 11.57550, "alt": 519.4,
   "speed": 7.3,          // m/s over ground, -1 if unknown
   "course": 92.4,        // degrees from true north, -1 if unknown
-  "h_acc": 4.0, "v_acc": 6.0 }   // accuracy estimates, meters
+  "h_acc": 4.0, "v_acc": 6.0,    // accuracy estimates, meters
+  "produced_by_accessory": false }  // optional, iOS only — see below
 ```
+
+`produced_by_accessory` (optional boolean, iOS only, from
+`CLLocation.sourceInformation.isProducedByAccessory`; omitted when unknown,
+never written by Android) records GPS **provenance**: wireless CarPlay head
+units transparently feed the *vehicle's* GNSS into CoreLocation, so a docked
+iPhone's "phone GPS" may really be the car's — and then it is not an
+independent reference against the CAN bus. The server can downgrade
+accessory-produced fixes accordingly. Background in
+[`car-projection.md`](car-projection.md#gps-provenance-produced_by_accessory).
+
+## `phone/car_hw.jsonl` (optional)
+
+Vehicle data the **head unit forwards to the phone** while the companion's
+Android Auto car app is connected (`CarHardwareManager`; CarPlay forwards no
+vehicle data — see [`car-projection.md`](car-projection.md) for the design and
+platform limits). One JSON object per callback/fetch:
+
+```jsonc
+{ "t_utc": 1752624010.5, "kind": "energy", "status": "success",
+  "data": { "battery_percent": 71.0, "fuel_percent": null,
+            "range_meters": 182000.0, "energy_low": false } }
+{ "t_utc": 1752624010.6, "kind": "speed", "status": "success",
+  "data": { "raw_mps": 13.4, "display_mps": 14.2 } }
+{ "t_utc": 1752624010.7, "kind": "mileage", "status": "unavailable",
+  "data": {} }
+```
+
+- `t_utc` — Unix seconds on the **phone clock**, same domain as
+  `phone/motion.jsonl` (stamped at callback delivery, *not* the head unit's
+  clock).
+- `kind` — `model | energy | speed | mileage | location | accelerometer |
+  gyroscope | compass`; the shape of `data` follows the kind (normative:
+  [`car_hw.record.schema.json`](../schemas/car_hw.record.schema.json)). All
+  `data` fields are nullable; unknown fields are omitted; values are logged
+  verbatim without range clamping.
+- `status` — `success | unavailable | unimplemented | error`. **A record is
+  written for every response, including non-success ones** — which kinds an
+  OEM head unit forwards at all is precisely what this stream measures (the
+  third record above is the eVito MBUX answering "no odometer for you", and
+  that answer is the data).
+
+The stream is optional: when a car session delivered records, the companion
+lists it in `manifest.json` as a stream of kind `car_hw` (with its row count),
+exactly like `motion`/`location`. Sessions without it remain valid, producers
+without it remain conformant.
 
 ## `phone/video.mp4` + `phone/video_index.jsonl`
 

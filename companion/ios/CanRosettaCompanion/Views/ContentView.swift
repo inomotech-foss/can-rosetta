@@ -27,6 +27,17 @@ struct ContentView: View {
         .environmentObject(flow)
         .preferredColorScheme(.dark)
         .tint(Theme.indigo)
+        // The idle status widget deep-links here via `canrosetta://record`
+        // (RecordingStatusWidget uses widgetURL; the scheme is declared in
+        // Info.plist). Bring the app forward and jump to the start of the drive
+        // flow — navigation only, so starting still runs the pre-flight flow.
+        // This lives on the flow host (not the App scene) because that is where
+        // DriveFlowModel is owned; onOpenURL fires for the active scene either way.
+        .onOpenURL { url in
+            guard url.scheme == "canrosetta",
+                  url.host == "record" || url.path == "/record" else { return }
+            flow.goToStart()
+        }
     }
 
     private var pageTransition: AnyTransition {

@@ -98,6 +98,7 @@ data class MountState(val rms: Double = 0.0, val hasData: Boolean = false) {
  * └── phone/
  *     ├── motion.jsonl
  *     ├── location.jsonl
+ *     ├── car_hw.jsonl         (only if an Android Auto car session fed records)
  *     ├── video.mp4            (only if "film dashboard" was on and bound)
  *     ├── video_index.jsonl
  *     ├── photos/NNNNNN.jpg    (only if "capture stills" was on and bound)
@@ -106,6 +107,12 @@ data class MountState(val rms: Double = 0.0, val hasData: Boolean = false) {
  */
 class RecordingController(
     private val context: Context,
+    /**
+     * Used ONLY for CameraX `bindToLifecycle`. The process-wide holder
+     * (`CanRosettaApplication`) passes `ProcessLifecycleOwner`, which is
+     * RESUMED while any activity is — so phone-UI camera recording behaves as
+     * before, and car-initiated sessions simply run without the camera.
+     */
     private val lifecycleOwner: LifecycleOwner,
 ) {
     // Editable inputs the UI binds two-way.
@@ -143,6 +150,12 @@ class RecordingController(
     private var motionWriter: JsonlWriter? = null
     private var locationWriter: JsonlWriter? = null
     private var cameraProvider: ProcessCameraProvider? = null
+
+    // Companion car-hardware reference stream (phone/car_hw.jsonl), fed by
+    // car.CarHardwareLogger while an Android Auto session is alive. Created
+    // lazily on first append so drives without a head unit don't ship an
+    // empty stream.
+    private var carHwWriter: JsonlWriter? = null
 
     // A standby GPS source so pre-flight can surface a live fix before recording.
     private var standbyLocation: LocationSource? = null
@@ -229,7 +242,14 @@ class RecordingController(
         stopVibrationMonitor()
     }
 
-    fun start() {
+    /**
+     * Begin recording. [enableCamera] gates the camera entirely: car-initiated
+     * sessions pass `false` because the car surface means a docked/pocketed
+     * phone, and with the camera bound to `ProcessLifecycleOwner` it would
+     * otherwise power on the moment the driver opens the phone app mid-drive.
+     * Phone-UI sessions keep the default `true`.
+     */
+    fun start(enableCamera: Boolean = true) {
         if (_status.value.isRecording) return
         update { it.copy(exportPath = null, lastError = null, distanceMeters = 0.0) }
 
@@ -293,7 +313,7 @@ class RecordingController(
             locationSource = location
             location.start()
 
-            if (filmDashboard.value || capturePhotos.value) {
+            if (enableCamera && (filmDashboard.value || capturePhotos.value)) {
                 if (hasCameraPermission()) {
                     startCamera(clock, phone)
                 } else {
@@ -337,9 +357,15 @@ class RecordingController(
             cameraProvider?.unbindAll()
             motionWriter?.close()
             locationWriter?.close()
+            carHwWriter?.close()
 
             val videoFrames = videoRecorder?.frameCount ?: 0
-            finalizeStreams = buildStreams(motionRows, locationRows, hadVideo, videoFrames, start, endUtc)
+            // The car_hw writer only exists if an Android Auto session delivered
+            // records this drive; its count is final because appends are gated on
+            // isRecording, which flipped before this coroutine ran.
+            val carHwRows = carHwWriter?.rowCount ?: 0
+            finalizeStreams =
+                buildStreams(motionRows, locationRows, carHwRows, hadVideo, videoFrames, start, endUtc)
             finalizeCreatedUtc = start
             rewriteManifestAndExport()
 
@@ -350,6 +376,7 @@ class RecordingController(
             photoCapture = null
             motionWriter = null
             locationWriter = null
+            carHwWriter = null
             cameraProvider = null
             clock = null
         }
@@ -372,6 +399,25 @@ class RecordingController(
         if (!_status.value.isRecording && sessionDir != null) {
             scope.launch { rewriteManifestAndExport() }
         }
+    }
+
+    // MARK: - Car hardware reference stream
+
+    /**
+     * Append one `phone/car_hw.jsonl` record (built by `car.CarHwRecords`,
+     * delivered by `car.CarHardwareLogger`). Accepted ONLY while a recording
+     * session is active — the stream lives and dies with the session, exactly
+     * like motion/location. Called on the main thread (the logger's callbacks
+     * run on the main executor), the same thread [start]/[stop] mutate the
+     * session state on, so no extra synchronisation is needed; a record racing
+     * a just-finished [stop] is dropped by the writer's closed flag.
+     */
+    fun appendCarHardware(record: JSONObject) {
+        if (!_status.value.isRecording) return
+        val dir = sessionDir ?: return
+        val writer = carHwWriter
+            ?: JsonlWriter(File(File(dir, "phone"), "car_hw.jsonl")).also { carHwWriter = it }
+        writer.append(record)
     }
 
     // MARK: - Camera
@@ -480,6 +526,7 @@ class RecordingController(
     private fun buildStreams(
         motionRows: Long,
         locationRows: Long,
+        carHwRows: Long,
         hadVideo: Boolean,
         videoFrames: Int,
         startUtc: Double,
@@ -489,6 +536,13 @@ class RecordingController(
             SessionManifest.Stream("phone/motion.jsonl", "motion", motionRows, null, startUtc, endUtc),
             SessionManifest.Stream("phone/location.jsonl", "location", locationRows, null, startUtc, endUtc),
         )
+        // Registered exactly like motion/location, but only when the drive had
+        // an Android Auto session feeding records (the file is created lazily).
+        if (carHwRows > 0) {
+            streams.add(
+                SessionManifest.Stream("phone/car_hw.jsonl", "car_hw", carHwRows, null, startUtc, endUtc)
+            )
+        }
         if (hadVideo && videoFrames > 0) {
             streams.add(
                 SessionManifest.Stream(
@@ -685,11 +739,13 @@ class RecordingController(
         videoRecorder?.cancel()
         motionWriter?.close()
         locationWriter?.close()
+        carHwWriter?.close()
         motionSource = null
         photoCapture = null
         videoRecorder = null
         motionWriter = null
         locationWriter = null
+        carHwWriter = null
         stopTicker()
         _accel.value = AccelG()
         update { it.copy(isRecording = false) }

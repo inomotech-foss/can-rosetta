@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto capability declaration referenced from the manifest's
+     com.google.android.gms.car.application meta-data: this is a template
+     (car-app-library) app. -->
+<automotiveApp>
+    <uses name="template" />
+</automotiveApp>
